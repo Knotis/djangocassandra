@@ -199,8 +199,17 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         self,
         keyspace=None
     ):
+        if not keyspace or keyspace == 'default':
+            keyspace = self.settings_dict.get('NAME')
+
+        if not keyspace:
+            keyspace = 'django'
+
         if not self._session or self._session.is_shutdown:
             self._session = self._cluster.connect(keyspace=keyspace)
+
+        else:
+            self._session.set_keyspace(keyspace)
 
         return self._session
 
