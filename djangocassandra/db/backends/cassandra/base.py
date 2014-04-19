@@ -1,3 +1,5 @@
+from django.db.utils import DatabaseError
+
 from djangotoolbox.db.base import (
     NonrelDatabaseFeatures,
     NonrelDatabaseOperations,
@@ -6,7 +8,12 @@ from djangotoolbox.db.base import (
     NonrelDatabaseValidation
 )
 
+from cassandra import InvalidRequest
 from cassandra.cluster import Cluster
+from cassandra.metadata import (
+    KeyspaceMetadata,
+    SimpleStrategy
+)
 
 from .creation import DatabaseCreation
 from .introspection import DatabaseIntrospection
@@ -82,7 +89,6 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         self.creation = DatabaseCreation(self)
         self.validation = DatabaseValidation(self)
         self.introspection = DatabaseIntrospection(self)
-
         self._cluster = self._configure_cluster()
 
         '''
@@ -195,20 +201,73 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
             control_connection_timeout=control_connection_timeout
         )
 
+    def _create_keyspace(
+        self,
+        keyspace,
+        session=None
+    ):
+        if not session:
+            session = self.get_session(keyspace)
+
+        if keyspace in self._cluster.metadata.keyspaces:
+            ''' This keyspace already exists, nothing to do '''
+            return self._cluster.metadata.keyspaces[keyspace]
+
+        settings = self.settings_dict
+
+        keyspace_default_settings = {
+            'DURABLE_WRITES': True,
+            'REPLICATION_STRATEGY_CLASS': SimpleStrategy.name,
+            'REPLICATION_STRATEGY_OPTIONS': {
+                'replication_factor': 3
+            }
+        }
+
+        keyspace_settings = settings.get(
+            'KEYSPACES', {}
+        ).get(
+            keyspace, {}
+        )
+
+        keyspace_default_settings.update(keyspace_settings)
+        keyspace_settings = keyspace_default_settings
+        keyspace_metadata = KeyspaceMetadata(
+            keyspace,
+            keyspace_settings['DURABLE_WRITES'],
+            keyspace_settings['REPLICATION_STRATEGY_CLASS'],
+            keyspace_settings['REPLICATION_STRATEGY_OPTIONS']
+        )
+
+        self._cluster.metadata.keyspaces[keyspace] = keyspace_metadata
+
+        session.execute(keyspace_metadata.as_cql_query())
+
+        return keyspace_metadata
+
     def _open_session(
         self,
         keyspace=None
     ):
         if not keyspace or keyspace == 'default':
-            keyspace = self.settings_dict.get('NAME')
+            keyspace = self.settings_dict.get('DEFAULT_KEYSPACE')
 
-        if not keyspace:
+        if None is keyspace:
             keyspace = 'django'
 
         if not self._session or self._session.is_shutdown:
-            self._session = self._cluster.connect(keyspace=keyspace)
+            self._session = self._cluster.connect()
 
-        else:
+        try:
+            self._session.set_keyspace(keyspace)
+
+        except InvalidRequest:
+            '''
+            Try to configure and create the keyspace if we get an exception.
+            '''
+            self._create_keyspace(
+                keyspace,
+                session=self._session
+            )
             self._session.set_keyspace(keyspace)
 
         return self._session
