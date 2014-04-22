@@ -1,4 +1,6 @@
 from django.db.utils import DatabaseError
+
+from django.db.models.sql.constants import MULTI
 from django.db.models.sql.where import (
     WhereNode,
     EverythingNode,
@@ -282,3 +284,56 @@ class CassandraQuery(NonrelQuery):
 
 class SQLCompiler(NonrelCompiler):
     query_class = CassandraQuery
+
+    def execute_sql(
+        self,
+        result_type=MULTI
+    ):
+        return super(SQLCompiler, self).execute_sql(result_type)
+
+
+class SQLInsertCompiler(NonrelInsertCompiler, SQLCompiler):
+    def insert(
+        self,
+        values,
+        return_id
+    ):
+        column_family = self.query.model._meta.db_table
+
+        column_list = []
+        value_list = []
+        for row in values:
+            for column, value in row.items():
+                column_list.append(column)
+                value_list.append(value)
+
+        columns_clause = ', '.join(column_list)
+        values_clause = "', '".join(value_list)
+
+        cql_statement = ''.join([
+            'INSERT INTO ',
+            column_family,
+            ' ( ',
+            columns_clause,
+            " ) VALUES ( '",
+            values_clause,
+            "' )"
+        ])
+
+        session = self.connection.get_session(keyspace=self.using)
+        result = session.execute(cql_statement)
+
+        if return_id:
+            return result
+
+
+class SQLUpdateCompiler(NonrelUpdateCompiler, SQLCompiler):
+    def update(
+        self,
+        values
+    ):
+        return NonrelUpdateCompiler.update(self, values)
+
+
+class SQLDeleteCompiler(NonrelDeleteCompiler, SQLCompiler):
+    pass
