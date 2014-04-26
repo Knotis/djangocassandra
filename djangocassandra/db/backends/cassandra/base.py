@@ -1,4 +1,5 @@
-from django.db.utils import DatabaseError
+from copy import copy
+from uuid import UUID
 
 from djangotoolbox.db.base import (
     NonrelDatabaseFeatures,
@@ -9,7 +10,13 @@ from djangotoolbox.db.base import (
 )
 
 from cassandra import InvalidRequest
-from cassandra.cluster import Cluster
+from cassandra.cluster import (
+    Cluster,
+    dict_factory
+)
+from cassandra.cqltypes import (
+    UUIDType
+)
 from cassandra.metadata import (
     KeyspaceMetadata,
     SimpleStrategy
@@ -37,18 +44,6 @@ class DatabaseFeatures(NonrelDatabaseFeatures):
 class DatabaseOperations(NonrelDatabaseOperations):
     compiler_module = __name__.rsplit('.', 1)[0] + '.compiler'
 
-    def pk_default_value(self):
-        """
-        Use None as the value to indicate to the insert compiler that it needs
-        to auto-generate a guid to use for the id. The case where this gets hit
-        is when you create a model instance with no arguments. We override from
-        the default implementation (which returns 'DEFAULT') because it's
-        possible that someone would explicitly initialize the id field to be
-        that value and we wouldn't want to override that. But None would never
-        be a valid value for the id.
-        """
-        return None
-
     def sql_flush(
         self,
         style,
@@ -59,6 +54,48 @@ class DatabaseOperations(NonrelDatabaseOperations):
             self.connection.creation.flush_table(table_name)
 
         return ''
+
+    def _value_for_db(
+        self,
+        value,
+        field,
+        field_kind,
+        db_type,
+        lookup
+    ):
+        return super(DatabaseOperations, self)._value_for_db(
+            value,
+            field,
+            field_kind,
+            db_type,
+            lookup
+        )
+
+    def _value_from_db(
+        self,
+        value,
+        field,
+        field_kind,
+        db_type
+    ):
+        return super(DatabaseOperations, self)._value_from_db(
+            value,
+            field,
+            field_kind,
+            db_type
+        )
+
+    def value_to_db_auto(
+        self,
+        value
+    ):
+        uuid = copy(value)
+        if isinstance(uuid, basestring):
+            uuid = UUID(uuid)
+
+        uuid = UUIDType.serialize(uuid)
+
+        return uuid
 
 
 class DatabaseClient(NonrelDatabaseClient):
@@ -256,6 +293,7 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
 
         if not self._session or self._session.is_shutdown:
             self._session = self._cluster.connect()
+            self._session.row_factory = dict_factory
 
         try:
             self._session.set_keyspace(keyspace)

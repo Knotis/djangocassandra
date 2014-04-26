@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from django.db.utils import DatabaseError
 
 from django.db.models.sql.constants import MULTI
@@ -17,6 +19,8 @@ from djangotoolbox.db.basecompiler import (
 )
 
 from cassandra.query import SimpleStatement
+
+from .utils import sort_rows
 
 
 class CassandraQuery(NonrelQuery):
@@ -39,6 +43,25 @@ class CassandraQuery(NonrelQuery):
         self.where = None
         self.ordering = None
         self.cache = None
+        self.allows_inefficient = True  # TODO: Make this a config setting
+        self.is_efficient = True
+
+        if hasattr(self.query.model, 'Cassandra'):
+            self.column_family_settings = self.query.model.Cassandra.__dict__
+
+        else:
+            self.column_family_settings = (
+                self.connection.creation.default_cassandra_model_settings
+            )
+
+        self.partition_key_columns = self.column_family_settings.get(
+            'partition_key_columns',
+            [self.pk_column]
+        )
+        self.clustering_key_columns = self.column_family_settings.get(
+            'clustering_key_columns',
+            []
+        )
 
         self.indexed_columns = []
         self.field_name_to_column_name = {}
@@ -54,13 +77,15 @@ class CassandraQuery(NonrelQuery):
 
             self.field_name_to_column_name[field.name] = column
 
+        self.partition_key = self.query.model
+
     def _build_ordering_clause(self):
-        if self.ordering:
+        if self.ordering and self.is_efficient:
             ordering = self.ordering[0]
             ordering_clause = ' '.join([
                 'ORDER BY',
                 ordering[0],
-                'AESC' if ordering[1] else 'DESC'
+                'ASC' if ordering[1] else 'DESC'
             ])
 
         else:
@@ -79,13 +104,6 @@ class CassandraQuery(NonrelQuery):
                 'TOKEN(%s)' % (self.pk_column,),
                 '>=',
                 'TOKEN(%s)' % (low_mark,)
-            ]))
-
-        if high_mark:
-            paging_clause.append(' '.join([
-                'TOKEN(%s)' % (self.pk_column,),
-                '<=',
-                'TOKEN(%s)' % (high_mark,)
             ]))
 
         return ' AND '.join(paging_clause)
@@ -124,6 +142,12 @@ class CassandraQuery(NonrelQuery):
                 high_mark
             )
 
+            if high_mark:
+                limit_clause = 'LIMIT %s' % (high_mark,)
+
+            else:
+                limit_clause = 'LIMIT %s' % (10000,)
+
             columns_clause = self._build_columns_clause()
 
             column_family = self.column_family
@@ -160,7 +184,8 @@ class CassandraQuery(NonrelQuery):
                 'FROM',
                 column_family,
                 where_clause,
-                ordering_clause
+                ordering_clause,
+                limit_clause
             ])
 
             try:
@@ -171,6 +196,9 @@ class CassandraQuery(NonrelQuery):
 
             except Exception:
                 raise
+
+            if not self.is_efficient and self.ordering:
+                sort_rows(self.cache, self.ordering)
 
         return self.cache
 
@@ -239,38 +267,63 @@ class CassandraQuery(NonrelQuery):
             return
 
         if len(ordering) > 1:
-            raise DatabaseError(
-                'ORDER BY clauses can select a single column only. '
-                'That column has to be the second column in a compound '
-                'PRIMARY KEY.'
-            )
+            if self.allows_inefficient:
+                self.is_efficient = False
+                # TODO: Need to raise a warning whenever
+                #       we are allowing an inefficient
+                #       query.
+
+            else:
+                raise DatabaseError(
+                    'ORDER BY clauses can select a single column '
+                    'only. That column has to be the second column '
+                    'in a compound PRIMARY KEY.'
+                )
 
         self.ordering = []
         order = ordering[0]
 
-        if 1 == len(order):
-            if order.startswith('-'):
-                field_name = order[1:]
-                ascending = False
+        for order in ordering:
+            if isinstance(order, basestring):
+                if order.startswith('-'):
+                    field_name = order[1:]
+                    ascending = False
+
+                else:
+                    field_name = order
+                    ascending = True
+
+            elif 2 == len(order):
+                field, ascending = order
+                field_name = field.column
 
             else:
-                field_name = order
-                ascending = True
+                raise DatabaseError(
+                    'Invalid ordering specification: %s' % order,
+                )
 
-        elif 2 == len(order):
-            field_name, ascending = order
-
-        else:
-            raise DatabaseError(
-                'Invalid ordering specification: %s' % order,
+            column_name = self.field_name_to_column_name.get(
+                field_name,
+                field_name
             )
 
-        column_name = self.field_name_to_column_name.get(
-            field_name,
-            field_name
-        )
+            if self.is_efficient:
+                if (
+                    not self.clustering_key_columns or
+                    column_name != self.clustering_key_columns[0]
+                ):
+                    if self.allows_inefficient:
+                        self.is_efficient = False
+                        # TODO: Warning about efficiency
 
-        self.ordering = [(column_name, ascending)]
+                    else:
+                        raise DatabaseError(
+                            'ORDER BY clauses can select a single column '
+                            'only. That column has to be the second column '
+                            'in a compound PRIMARY KEY.'
+                        )
+
+            self.ordering.append((column_name, ascending))
 
     def add_filter(
         self,
@@ -298,33 +351,70 @@ class SQLInsertCompiler(NonrelInsertCompiler, SQLCompiler):
         values,
         return_id
     ):
-        column_family = self.query.model._meta.db_table
+        meta = self.query.get_meta()
+        if hasattr(self.query.model, 'Cassandra'):
+            cassandra_cf_opts = self.query.model.Cassandra
+            pk_columns = [
+                cassandra_cf_opts.partition_key_columns +
+                cassandra_cf_opts.clustering_key_columns
+            ]
+        else:
+            pk_columns = [meta.pk.column]
 
-        column_list = []
-        value_list = []
+        column_family = meta.db_table
+
+        inserted_row_keys = []
         for row in values:
+            primary_key = []
+            column_list = []
+            value_list = []
             for column, value in row.items():
+                if column in pk_columns:
+                    primary_key.append(value)
                 column_list.append(column)
                 value_list.append(value)
 
-        columns_clause = ', '.join(column_list)
-        values_clause = "', '".join(value_list)
+            if not primary_key:
+                primary_key.append(uuid4())
+                len_primary_key = len(primary_key)
+                assert(len_primary_key == len(pk_columns))
+                assert(len_primary_key == 1)
+                column_list.extend(pk_columns)
+                value_list.extend(primary_key)
 
-        cql_statement = ''.join([
-            'INSERT INTO ',
-            column_family,
-            ' ( ',
-            columns_clause,
-            " ) VALUES ( '",
-            values_clause,
-            "' )"
-        ])
+            columns_clause = ', '.join(column_list)
+            values_placeholder = ", ".join([
+                '%s' for _ in value_list
+            ])
 
-        session = self.connection.get_session(keyspace=self.using)
-        result = session.execute(cql_statement)
+            cql_statement = ''.join([
+                'INSERT INTO ',
+                column_family,
+                ' ( ',
+                columns_clause,
+                " ) VALUES ( ",
+                values_placeholder,
+                " )"
+            ])
+
+            session = self.connection.get_session(keyspace=self.using)
+            try:
+                session.execute(cql_statement, value_list)
+
+            except:
+                raise
+
+            inserted_row_keys.append(':'.join([
+                part if isinstance(part, basestring) else
+                str(part) for part in primary_key
+            ]))
 
         if return_id:
-            return result
+            if len(inserted_row_keys) == 1:
+                return inserted_row_keys[0]
+
+            else:
+                return inserted_row_keys
 
 
 class SQLUpdateCompiler(NonrelUpdateCompiler, SQLCompiler):

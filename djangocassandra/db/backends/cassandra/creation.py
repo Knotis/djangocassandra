@@ -27,6 +27,8 @@ from cassandra.cqltypes import (
     BytesType
 )
 
+from cassandra.util import OrderedDict
+
 
 class DatabaseCreation(NonrelDatabaseCreation):
     data_typename_to_typeclass = {
@@ -201,7 +203,7 @@ class DatabaseCreation(NonrelDatabaseCreation):
         partition_key = []
         clustering_key = []
         primary_key_field = None
-        columns = {}
+        columns = OrderedDict()
         for field in meta.local_fields:
             column_name = field.db_column if field.db_column else field.column
             data_typename = self.data_types.get(
@@ -212,6 +214,26 @@ class DatabaseCreation(NonrelDatabaseCreation):
                 data_typename,
                 BytesType
             )
+            if issubclass(data_type, ListType):
+                item_typename = field.item_field.get_internal_type()
+                subtype_typename = self.data_types.get(
+                    item_typename,
+                    BytesType.typename
+                )
+                subtype = self.data_typename_to_typeclass.get(
+                    subtype_typename,
+                    BytesType
+                )
+                data_type = type(
+                    'ListType_' + subtype_typename,
+                    (data_type,), {
+                        'subtypes': (subtype,)
+                    }
+                )
+
+            elif issubclass(data_type, MapType):
+                pass
+
             column = ColumnMetadata(
                 table_metadata,
                 column_name,

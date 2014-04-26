@@ -17,7 +17,7 @@ class DatabaseIntrospection(NonrelDatabaseIntrospection):
             '\''
         ]))
         session.set_keyspace(current_keyspace)
-        return [row[0] for row in table_list]
+        return [row['columnfamily_name'] for row in table_list]
 
     def table_names(self):
         return BaseDatabaseIntrospection.table_names(self)
