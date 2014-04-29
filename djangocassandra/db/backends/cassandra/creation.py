@@ -145,6 +145,18 @@ class DatabaseCreation(NonrelDatabaseCreation):
         'table_options': default_table_options
     }
 
+    def db_type(
+        self,
+        field
+    ):
+        data_type = self.data_types.get(field.get_internal_type())
+
+        if None is data_type:
+            return field.db_type(connection=self.connection)
+
+        else:
+            return data_type
+
     def sql_create_model(
         self,
         model,

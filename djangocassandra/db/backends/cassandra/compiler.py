@@ -2,9 +2,11 @@ from uuid import uuid4
 
 from django.db.utils import DatabaseError
 
+from django.db.models.constants import LOOKUP_SEP
 from django.db.models.sql.constants import MULTI
 from django.db.models.sql.where import (
     WhereNode,
+    Constraint,
     EverythingNode,
     AND,
     OR
@@ -25,6 +27,7 @@ from .utils import sort_rows
 
 class CassandraQuery(NonrelQuery):
     MAX_RESULT_COUNT = 10000
+    where_class = WhereNode
 
     def __init__(
         self,
@@ -153,9 +156,26 @@ class CassandraQuery(NonrelQuery):
             column_family = self.column_family
             # TODO: !!!!^^^ NEED TO SANITIZE ALL OF THIS ^^^!!!!
 
-            where_statement, where_params = self.where.as_sql()
+            where_statement, where_params = self.where.as_sql(
+                self.connection.ops.quote_name,
+                self.connection
+            )
             if where_statement and where_params:
-                where_clause = where_statement % (where_params,)
+                where_statement = where_statement.replace(
+                    '(',
+                    ''
+                ).replace(
+                    ')',
+                    ''
+                )
+
+                quoted_params = []
+                for param in where_params:
+                    if isinstance(param, basestring):
+                        param = "'" + param + "'"
+
+                    quoted_params.append(param)
+                where_clause = where_statement % tuple(quoted_params)
 
             else:
                 where_clause = ''
@@ -176,8 +196,6 @@ class CassandraQuery(NonrelQuery):
                     where_clause
                 ])
 
-            select_statement = ['SELECT']
-
             select_statement = ' '.join([
                 'SELECT',
                 columns_clause,
@@ -192,6 +210,7 @@ class CassandraQuery(NonrelQuery):
                 session = self.connection.get_session(
                     keyspace=self.compiler.using
                 )
+                import pdb; pdb.set_trace()
                 self.cache = session.execute(select_statement)
 
             except Exception:
@@ -332,7 +351,22 @@ class CassandraQuery(NonrelQuery):
         negated,
         value
     ):
-        pass
+        if None is self.where:
+            self.where = self.where_class()
+
+        constraint = (
+            Constraint(
+                None,
+                field.column,
+                field
+            ),
+            lookup_type,
+            value
+        )
+
+        clause = self.where_class()
+        clause.add(constraint, AND)
+        self.where.add(clause, AND)
 
 
 class SQLCompiler(NonrelCompiler):

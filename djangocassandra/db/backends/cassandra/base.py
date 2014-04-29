@@ -1,4 +1,3 @@
-from copy import copy
 from uuid import UUID
 
 from djangotoolbox.db.base import (
@@ -13,9 +12,6 @@ from cassandra import InvalidRequest
 from cassandra.cluster import (
     Cluster,
     dict_factory
-)
-from cassandra.cqltypes import (
-    UUIDType
 )
 from cassandra.metadata import (
     KeyspaceMetadata,
@@ -89,13 +85,10 @@ class DatabaseOperations(NonrelDatabaseOperations):
         self,
         value
     ):
-        uuid = copy(value)
-        if isinstance(uuid, basestring):
-            uuid = UUID(uuid)
+        if isinstance(value, basestring):
+            value = UUID(value)
 
-        uuid = UUIDType.serialize(uuid)
-
-        return uuid
+        return value
 
 
 class DatabaseClient(NonrelDatabaseClient):
