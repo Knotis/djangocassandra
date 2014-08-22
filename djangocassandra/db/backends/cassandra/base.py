@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from djangotoolbox.db.base import (
     NonrelDatabaseFeatures,
     NonrelDatabaseOperations,
@@ -6,7 +8,15 @@ from djangotoolbox.db.base import (
     NonrelDatabaseValidation
 )
 
-from cassandra.cluster import Cluster
+from cassandra import InvalidRequest
+from cassandra.cluster import (
+    Cluster,
+    dict_factory
+)
+from cassandra.metadata import (
+    KeyspaceMetadata,
+    SimpleStrategy
+)
 
 from .creation import DatabaseCreation
 from .introspection import DatabaseIntrospection
@@ -30,18 +40,6 @@ class DatabaseFeatures(NonrelDatabaseFeatures):
 class DatabaseOperations(NonrelDatabaseOperations):
     compiler_module = __name__.rsplit('.', 1)[0] + '.compiler'
 
-    def pk_default_value(self):
-        """
-        Use None as the value to indicate to the insert compiler that it needs
-        to auto-generate a guid to use for the id. The case where this gets hit
-        is when you create a model instance with no arguments. We override from
-        the default implementation (which returns 'DEFAULT') because it's
-        possible that someone would explicitly initialize the id field to be
-        that value and we wouldn't want to override that. But None would never
-        be a valid value for the id.
-        """
-        return None
-
     def sql_flush(
         self,
         style,
@@ -52,6 +50,45 @@ class DatabaseOperations(NonrelDatabaseOperations):
             self.connection.creation.flush_table(table_name)
 
         return ''
+
+    def _value_for_db(
+        self,
+        value,
+        field,
+        field_kind,
+        db_type,
+        lookup
+    ):
+        return super(DatabaseOperations, self)._value_for_db(
+            value,
+            field,
+            field_kind,
+            db_type,
+            lookup
+        )
+
+    def _value_from_db(
+        self,
+        value,
+        field,
+        field_kind,
+        db_type
+    ):
+        return super(DatabaseOperations, self)._value_from_db(
+            value,
+            field,
+            field_kind,
+            db_type
+        )
+
+    def value_to_db_auto(
+        self,
+        value
+    ):
+        if isinstance(value, basestring):
+            value = UUID(value)
+
+        return value
 
 
 class DatabaseClient(NonrelDatabaseClient):
@@ -82,7 +119,6 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         self.creation = DatabaseCreation(self)
         self.validation = DatabaseValidation(self)
         self.introspection = DatabaseIntrospection(self)
-
         self._cluster = self._configure_cluster()
 
         '''
@@ -195,12 +231,75 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
             control_connection_timeout=control_connection_timeout
         )
 
+    def _create_keyspace(
+        self,
+        keyspace,
+        session=None
+    ):
+        if not session:
+            session = self.get_session(keyspace)
+
+        if keyspace in self._cluster.metadata.keyspaces:
+            ''' This keyspace already exists, nothing to do '''
+            return self._cluster.metadata.keyspaces[keyspace]
+
+        settings = self.settings_dict
+
+        keyspace_default_settings = {
+            'DURABLE_WRITES': True,
+            'REPLICATION_STRATEGY_CLASS': SimpleStrategy.name,
+            'REPLICATION_STRATEGY_OPTIONS': {
+                'replication_factor': 3
+            }
+        }
+
+        keyspace_settings = settings.get(
+            'KEYSPACES', {}
+        ).get(
+            keyspace, {}
+        )
+
+        keyspace_default_settings.update(keyspace_settings)
+        keyspace_settings = keyspace_default_settings
+        keyspace_metadata = KeyspaceMetadata(
+            keyspace,
+            keyspace_settings['DURABLE_WRITES'],
+            keyspace_settings['REPLICATION_STRATEGY_CLASS'],
+            keyspace_settings['REPLICATION_STRATEGY_OPTIONS']
+        )
+
+        self._cluster.metadata.keyspaces[keyspace] = keyspace_metadata
+
+        session.execute(keyspace_metadata.as_cql_query())
+
+        return keyspace_metadata
+
     def _open_session(
         self,
         keyspace=None
     ):
+        if not keyspace or keyspace == 'default':
+            keyspace = self.settings_dict.get('DEFAULT_KEYSPACE')
+
+        if None is keyspace:
+            keyspace = 'django'
+
         if not self._session or self._session.is_shutdown:
-            self._session = self._cluster.connect(keyspace=keyspace)
+            self._session = self._cluster.connect()
+            self._session.row_factory = dict_factory
+
+        try:
+            self._session.set_keyspace(keyspace)
+
+        except InvalidRequest:
+            '''
+            Try to configure and create the keyspace if we get an exception.
+            '''
+            self._create_keyspace(
+                keyspace,
+                session=self._session
+            )
+            self._session.set_keyspace(keyspace)
 
         return self._session
 
