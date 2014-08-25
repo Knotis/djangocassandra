@@ -2,14 +2,12 @@ from uuid import uuid4
 
 from django.db.utils import DatabaseError
 
-from django.db.models.constants import LOOKUP_SEP
 from django.db.models.sql.constants import MULTI
 from django.db.models.sql.where import (
     WhereNode,
     Constraint,
     EverythingNode,
-    AND,
-    OR
+    AND
 )
 
 from djangotoolbox.db.basecompiler import (
@@ -22,7 +20,10 @@ from djangotoolbox.db.basecompiler import (
 
 from cassandra.query import SimpleStatement
 
-from .utils import sort_rows
+from .utils import (
+    sort_rows,
+    filter_rows
+)
 
 
 class CassandraQuery(NonrelQuery):
@@ -47,7 +48,8 @@ class CassandraQuery(NonrelQuery):
         self.ordering = None
         self.cache = None
         self.allows_inefficient = True  # TODO: Make this a config setting
-        self.is_efficient = True
+        self.can_filter_efficiently = True
+        self.can_order_efficiently = True
 
         if hasattr(self.query.model, 'Cassandra'):
             self.column_family_settings = self.query.model.Cassandra.__dict__
@@ -83,7 +85,7 @@ class CassandraQuery(NonrelQuery):
         self.partition_key = self.query.model
 
     def _build_ordering_clause(self):
-        if self.ordering and self.is_efficient:
+        if self.ordering and self.can_order_efficiently:
             ordering = self.ordering[0]
             ordering_clause = ' '.join([
                 'ORDER BY',
@@ -125,6 +127,60 @@ class CassandraQuery(NonrelQuery):
 
         return columns
 
+    def _build_where_clause(
+        self,
+        paging_clause=None
+    ):
+        if not self.can_filter_efficiently:
+            return ''
+
+        where_statement, where_params = self.where.as_sql(
+            self.connection.ops.quote_name,
+            self.connection
+        )
+        if where_statement and where_params:
+            # TODO: WhereNode should probably be subclassed
+            #       to appropriately format the where clause
+            #       although this will probably only ever be
+            #       used internally so not super critical.
+            where_statement = where_statement.replace(
+                '(',
+                ''
+            ).replace(
+                ')',
+                ''
+            )
+
+            quoted_params = []
+            for param in where_params:
+                # TODO: Where params should also be sanitized.
+                if isinstance(param, basestring):
+                    param = "'" + param + "'"
+
+                quoted_params.append(param)
+            where_clause = where_statement % tuple(quoted_params)
+
+        else:
+            where_clause = ''
+
+        if paging_clause:
+            if where_clause:
+                where_clause = ' AND '.join([
+                    where_clause,
+                    paging_clause
+                ])
+
+            else:
+                where_clause = paging_clause
+
+        if where_clause:
+            where_clause = ' '.join([
+                'WHERE',
+                where_clause
+            ])
+
+        return where_clause
+
     def _get_query_results(
         self,
         low_mark=None,
@@ -138,12 +194,8 @@ class CassandraQuery(NonrelQuery):
                 self.where = EverythingNode()
 
             # TODO: !!!!vvv NEED TO SANITIZE ALL OF THIS vvv!!!!
-            ordering_clause = self._build_ordering_clause()
 
-            paging_clause = self._build_paging_clause(
-                low_mark,
-                high_mark
-            )
+            ordering_clause = self._build_ordering_clause()
 
             if high_mark:
                 limit_clause = 'LIMIT %s' % (high_mark,)
@@ -154,47 +206,15 @@ class CassandraQuery(NonrelQuery):
             columns_clause = self._build_columns_clause()
 
             column_family = self.column_family
-            # TODO: !!!!^^^ NEED TO SANITIZE ALL OF THIS ^^^!!!!
 
-            where_statement, where_params = self.where.as_sql(
-                self.connection.ops.quote_name,
-                self.connection
+            paging_clause = self._build_paging_clause(
+                low_mark,
+                high_mark
             )
-            if where_statement and where_params:
-                where_statement = where_statement.replace(
-                    '(',
-                    ''
-                ).replace(
-                    ')',
-                    ''
-                )
 
-                quoted_params = []
-                for param in where_params:
-                    if isinstance(param, basestring):
-                        param = "'" + param + "'"
+            where_clause = self._build_where_clause(paging_clause)
 
-                    quoted_params.append(param)
-                where_clause = where_statement % tuple(quoted_params)
-
-            else:
-                where_clause = ''
-
-            if paging_clause:
-                if where_clause:
-                    where_clause = ' AND '.join([
-                        where_clause,
-                        paging_clause
-                    ])
-
-                else:
-                    where_clause = paging_clause
-
-            if where_clause:
-                where_clause = ' '.join([
-                    'WHERE',
-                    where_clause
-                ])
+            # TODO: !!!!^^^ NEED TO SANITIZE ALL OF THIS ^^^!!!!
 
             select_statement = ' '.join([
                 'SELECT',
@@ -210,13 +230,15 @@ class CassandraQuery(NonrelQuery):
                 session = self.connection.get_session(
                     keyspace=self.compiler.using
                 )
-                import pdb; pdb.set_trace()
                 self.cache = session.execute(select_statement)
 
             except Exception:
                 raise
 
-            if not self.is_efficient and self.ordering:
+            if not self.can_filter_efficiently:
+                self.cache = filter_rows(self.cache, self.where)
+
+            if not self.can_order_efficiently and self.ordering:
                 sort_rows(self.cache, self.ordering)
 
         return self.cache
@@ -287,7 +309,7 @@ class CassandraQuery(NonrelQuery):
 
         if len(ordering) > 1:
             if self.allows_inefficient:
-                self.is_efficient = False
+                self.can_order_efficiently = False
                 # TODO: Need to raise a warning whenever
                 #       we are allowing an inefficient
                 #       query.
@@ -326,13 +348,13 @@ class CassandraQuery(NonrelQuery):
                 field_name
             )
 
-            if self.is_efficient:
+            if self.can_order_efficiently:
                 if (
                     not self.clustering_key_columns or
                     column_name != self.clustering_key_columns[0]
                 ):
                     if self.allows_inefficient:
-                        self.is_efficient = False
+                        self.can_order_efficiently = False
                         # TODO: Warning about efficiency
 
                     else:
@@ -353,6 +375,20 @@ class CassandraQuery(NonrelQuery):
     ):
         if None is self.where:
             self.where = self.where_class()
+
+        if field.column not in self.indexed_columns:
+            if self.allows_inefficient:
+                self.can_filter_efficiently = False
+                # TODO: Raise Efficiency Warning
+
+            else:
+                raise DatabaseError(
+                    'Filtering on columns that are not part of the '
+                    'partition/clustering key or that do not have '
+                    'secondary indexes is not supported by Cassandra. '
+                    'Either add a secondary index or reevaluate your '
+                    'database schema.'
+                )
 
         constraint = (
             Constraint(
