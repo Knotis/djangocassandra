@@ -7,5 +7,8 @@ Testing
 virtualenv venv
 source venv/bin/activate
 pip install --upgrade ./
-export DJANGO_SETTINGS_MODULE=tests.settings nosetests
+pip install nose 
+pip install git+https://github.com/django-nonrel/django.git@nonrel-1.6
+export DJANGO_SETTINGS_MODULE=tests.settings
+nosetests
 ```
