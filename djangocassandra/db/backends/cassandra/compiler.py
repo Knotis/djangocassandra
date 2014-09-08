@@ -30,6 +30,8 @@ from .utils import (
 class InefficientQueryWarning(RuntimeWarning):
     pass
 
+
+
 class CassandraQuery(NonrelQuery):
     MAX_RESULT_COUNT = 10000
     where_class = WhereNode
@@ -311,23 +313,8 @@ class CassandraQuery(NonrelQuery):
         if isinstance(ordering, bool):
             return
 
-        if len(ordering) > 1:
-            if self.allows_inefficient:
-                self.can_order_efficiently = False
-                warnings.warn(
-                    "Use of inefficient queries may cause performance issues.",
-                    InefficientQueryWarning
-                )
-
-            else:
-                raise DatabaseError(
-                    'ORDER BY clauses can select a single column '
-                    'only. That column has to be the second column '
-                    'in a compound PRIMARY KEY.'
-                )
 
         self.ordering = []
-        order = ordering[0]
 
         for order in ordering:
             if isinstance(order, basestring):
