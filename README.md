@@ -1,6 +1,12 @@
 Cassandra support for the Django web framework
 ==============================================
 
+Install Apache Cassandra
+-------
+```
+follow directions on this link: http://wiki.apache.org/cassandra/DebianPackaging
+```
+
 Testing
 -------
 ```
