@@ -245,8 +245,6 @@ class CassandraQuery(NonrelQuery):
             if not self.can_order_efficiently and self.ordering:
                 sort_rows(self.cache, self.ordering)
 
-
-
         return self.cache
 
     def fetch(
