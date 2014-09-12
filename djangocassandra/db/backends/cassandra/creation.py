@@ -151,7 +151,7 @@ class DatabaseCreation(NonrelDatabaseCreation):
     ):
         '''
         TODO:
-        Investigate wether this code is redundant.
+        Investigate whether this code is redundant.
         After looking at Field.db_type() it seems like
         the code here is duplicated.
         '''
