@@ -14,6 +14,13 @@
           unaccelerated case.
 """
 
+from django.conf import settings
+
+from django.db.models import (
+    Model,
+    CharField
+)
+
 from unittest import TestCase
 
 from util import (
@@ -23,11 +30,28 @@ from util import (
     destroy_db
 )
 
+fake_data = [('a', 'b', 'c'), ('d', 'e', 'f'), ('g', 'h', 'i')]
+class SortingTestModel(Model):
+    field_1 = CharField(max_length=50)
+    field_2 = CharField(max_length=50)
+    field_3 = CharField(max_length=50)
 
 class TestFullOrderingMatch(TestCase):
     def setUp(self):
-        self.connection = connect_db()
-        create_db(self.connection)
+        try:
+            try:
+                self.connection = connect_db()
+            except Exception, e:
+                self.connection = None
+                raise e
+            create_db(self.connection, SortingTestModel)
+            test_data = []
+            for x, y, z in fake_data:
+                test_data.append(SortingTestModel(x, y, z))
+            populate_db(self.connection, test_data)
+        except Exception, e:
+            self.tearDown()
+            raise e
 
     def tearDown(self):
         destroy_db(self.connection)

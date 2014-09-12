@@ -4,6 +4,7 @@ from django.db.models import (
     CharField
 )
 from djangocassandra.db.backends.cassandra.base import DatabaseWrapper
+from djangocassandra.db.backends.cassandra.compiler import SQLInsertCompiler
 
 
 def connect_db():
@@ -12,19 +13,16 @@ def connect_db():
     return connection
 
 
-def create_db(connection):
-    class TestModel(Model):
-        column_1 = CharField(max_length=16)
-        column_2 = CharField(max_length=16)
-
+def create_db(connection, model):
     connection.creation.sql_create_model(
-        TestModel,
+        model,
         None
     )
 
 
-def populate_db(connection):
-    pass
+def populate_db(connection, values):
+    for value in values:
+        value.save()    
 
 
 def destroy_db(connection):
