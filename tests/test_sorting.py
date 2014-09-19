@@ -14,6 +14,8 @@
           unaccelerated case.
 """
 
+import warnings
+
 from django.conf import settings
 
 from django.db.models import (
@@ -30,13 +32,19 @@ from util import (
     destroy_db
 )
 
+from djangocassandra.db.backends.cassandra.compiler import (
+    InefficientQueryWarning,
+)
+
 fake_data = [('a', 'b', 'c'), ('d', 'e', 'f'), ('g', 'h', 'i')]
 class SortingTestModel(Model):
     field_1 = CharField(max_length=50)
     field_2 = CharField(max_length=50)
     field_3 = CharField(max_length=50)
 
-class TestFullOrderingMatch(TestCase):
+class SortingTestCase(TestCase):
+    connection = None
+
     def setUp(self):
         try:
             try:
@@ -47,7 +55,7 @@ class TestFullOrderingMatch(TestCase):
             create_db(self.connection, SortingTestModel)
             test_data = []
             for x, y, z in fake_data:
-                test_data.append(SortingTestModel(x, y, z))
+                test_data.append(SortingTestModel(field_1=x, field_2=y, field_3=z))
             populate_db(self.connection, test_data)
         except Exception, e:
             self.tearDown()
@@ -56,25 +64,32 @@ class TestFullOrderingMatch(TestCase):
     def tearDown(self):
         destroy_db(self.connection)
 
+class TestFullOrderingMatch(SortingTestCase):
     def test_correct_sort_application(self):
-        pass
+        assert True
 
     def test_correct_sort_results(self):
-        pass
+        assert True
 
 
-class TestPartialOrderingMatch(TestCase):
+class TestPartialOrderingMatch(SortingTestCase):
     def test_correct_sort_application(self):
-        pass
+        assert True
 
     def test_correct_sort_results(self):
-        pass
+        assert True
 
 
-class TestDefaultSort(TestCase):
-
+class TestDefaultSort(SortingTestCase):
     def test_for_warnings(self):
-        pass
+        with warnings.catch_warnings():
+            warnings.filterwarnings('error')
+            try:
+                # DO SLOW SORT HERE
+                assert False
+            except InefficientQueryWarning:
+                assert True
+        raise 
 
     def test_correct_sort_results(self):
-        pass
+        assert True
