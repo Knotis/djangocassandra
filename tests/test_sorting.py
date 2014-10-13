@@ -93,6 +93,8 @@ class TestFullMatchOrdering(TestOrderingCase):
     def test_correct_sort_results(self):
         self.query.orderby(['field_1'])
         results = self.query._get_query_results()
+        
+        print results
 
         # Test data already sorted by field_1.
         ### COMPARE HERE.
@@ -134,9 +136,9 @@ class TestDefaultOrdering(TestOrderingCase):
     def test_correct_sort_results(self):
         self.query.orderby(['field_2', 'field_3', 'field_1'])
         ordering = self.query.ordering
-        local_cache = None
-        local_cache = sort_rows(local_cache, ordering) #<--- Not the right thing.
+        results = self.query._get_query_results()
         
+        print results
         ### SORT DATA HERE. 2, 3, 1 ordering.
         
         ### COMPARE HERE.
