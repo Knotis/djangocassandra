@@ -149,6 +149,12 @@ class DatabaseCreation(NonrelDatabaseCreation):
         self,
         field
     ):
+        '''
+        TODO:
+        Investigate wether this code is redundant.
+        After looking at Field.db_type() it seems like
+        the code here is duplicated.
+        '''
         data_type = self.data_types.get(field.get_internal_type())
 
         if None is data_type:
@@ -160,7 +166,7 @@ class DatabaseCreation(NonrelDatabaseCreation):
     def sql_create_model(
         self,
         model,
-        style,
+        style,  # Used for styling output
         known_models=set()
     ):
         connection_settings = self.connection.settings_dict

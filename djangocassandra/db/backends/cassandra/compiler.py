@@ -1,3 +1,5 @@
+import warnings
+
 from uuid import uuid4
 
 from django.db.utils import DatabaseError
@@ -24,6 +26,10 @@ from .utils import (
     sort_rows,
     filter_rows
 )
+
+class InefficientQueryWarning(RuntimeWarning):
+    pass
+
 
 
 class CassandraQuery(NonrelQuery):
@@ -307,22 +313,8 @@ class CassandraQuery(NonrelQuery):
         if isinstance(ordering, bool):
             return
 
-        if len(ordering) > 1:
-            if self.allows_inefficient:
-                self.can_order_efficiently = False
-                # TODO: Need to raise a warning whenever
-                #       we are allowing an inefficient
-                #       query.
-
-            else:
-                raise DatabaseError(
-                    'ORDER BY clauses can select a single column '
-                    'only. That column has to be the second column '
-                    'in a compound PRIMARY KEY.'
-                )
 
         self.ordering = []
-        order = ordering[0]
 
         for order in ordering:
             if isinstance(order, basestring):
@@ -355,8 +347,10 @@ class CassandraQuery(NonrelQuery):
                 ):
                     if self.allows_inefficient:
                         self.can_order_efficiently = False
-                        # TODO: Warning about efficiency
-
+                        warnings.warn(
+                            "Use of inefficient queries may cause performance issues.",
+                            InefficientQueryWarning
+                        )
                     else:
                         raise DatabaseError(
                             'ORDER BY clauses can select a single column '
