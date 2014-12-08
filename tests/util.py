@@ -26,6 +26,7 @@ def populate_db(connection, values):
 
 
 def destroy_db(connection):
-    session = connection.get_session()
-    for keyspace in settings.DATABASES['default']['KEYSPACES']:
-        session.execute('drop keyspace %s;' % keyspace,)
+    if not None is connection:
+        session = connection.get_session()
+        for keyspace in settings.DATABASES['default']['KEYSPACES']:
+            session.execute('drop keyspace %s;' % keyspace,)
