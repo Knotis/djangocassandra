@@ -28,7 +28,7 @@ class TestInsertion(TestCase):
         create_db(self.connection, self.InsertionTestModel)
         test_data = []
         for x, y, z in self.fake_data:
-            test_data.append(self.InsertionTestModel(x, y, z))
+            test_data.append(self.InsertionTestModel(field_1=x, field_2=y, field_3=z))
         populate_db(self.connection, test_data)
 
 
