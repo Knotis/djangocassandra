@@ -8,15 +8,15 @@ from djangotoolbox.db.base import (
     NonrelDatabaseValidation
 )
 
-from cassandra import InvalidRequest
-from cassandra.cluster import (
-    Cluster,
-    dict_factory
+from cassandra import (
+    ConsistencyLevel
 )
 from cassandra.metadata import (
-    KeyspaceMetadata,
     SimpleStrategy
 )
+
+from cqlengine import connection
+from cqlengine.management import create_keyspace
 
 from .creation import DatabaseCreation
 from .introspection import DatabaseIntrospection
@@ -119,26 +119,31 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         self.creation = DatabaseCreation(self)
         self.validation = DatabaseValidation(self)
         self.introspection = DatabaseIntrospection(self)
-        self._cluster = self._configure_cluster()
 
+    def configure_cluster(
+        self,
+        keyspace=None
+    ):
         '''
-        Do we want to support multiple sessions?
-        I'm having trouble coming up with a use case.
-        If so it shouldn't be to hard to change this
-        so that multiple sessions are stored in an
-        list or a dict.
-        '''
-        self._session = None
-
-    def _configure_cluster(self):
-        '''
-        Returns a new Cluster instance initialized with
+        Configures and opens a connection to the cluster using
         values from settings.py. See:
 
             http://datastax.github.io/python-driver/api/cassandra/cluster.html
 
         for descriptions of what each setting expects.
         '''
+        if not keyspace or keyspace == 'default':
+            keyspace = self.settings_dict.get(
+                'DEFAULT_KEYSPACE',
+                'django'
+            )
+
+        if hasattr(
+            self,
+            'cluster'
+        ) and None is not self.cluster:
+            return
+
         settings = self.settings_dict
 
         contact_points = settings.get(
@@ -212,45 +217,55 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
             2.0
         )
 
-        return Cluster(
-            contact_points=contact_points,
-            port=port,
-            compression=compression,
-            auth_provider=auth_provider,
-            load_balancing_policy=load_balancing_policy,
-            reconnection_policy=reconnection_policy,
-            default_retry_policy=default_retry_policy,
-            conviction_policy_factory=conviction_policy_factory,
-            metrics_enabled=metrics_enabled,
-            connection_class=connection_class,
-            ssl_options=ssl_options,
-            sockopts=sockopts,
-            cql_version=cql_version,
-            executor_threads=executor_threads,
-            max_schema_agreement_wait=max_schema_agreement_wait,
-            control_connection_timeout=control_connection_timeout
+        connection.setup(
+            contact_points,
+            keyspace,
+            consistency=ConsistencyLevel.ONE,
+            lazy_connect=True,
+            retry_connect=True, **{
+                'port': port,
+                'compression': compression,
+                'auth_provider': auth_provider,
+                'load_balancing_policy': load_balancing_policy,
+                'reconnection_policy': reconnection_policy,
+                'default_retry_policy': default_retry_policy,
+                'conviction_policy_factory': conviction_policy_factory,
+                'metrics_enabled': metrics_enabled,
+                'connection_class': connection_class,
+                'ssl_options': ssl_options,
+                'sockopts': sockopts,
+                'cql_version': cql_version,
+                'executor_threads': executor_threads,
+                'max_schema_agreement_wait': max_schema_agreement_wait,
+                'control_connection_timeout': control_connection_timeout
+           }
         )
 
-    def _create_keyspace(
+        self.cluster = connection.get_cluster()
+        self.keyspace = keyspace
+
+    def current_keyspace(self):
+        if not self.keyspace:
+            self.keyspace = self.settings_dict.get('DEFAULT_KEYSPACE')
+
+        if None is self.keyspace:
+            self.keyspace = 'django'
+
+        return self.keyspace
+
+    def create_keyspace(
         self,
         keyspace,
         session=None
     ):
-        if not session:
-            session = self.get_session(keyspace)
-
-        if keyspace in self._cluster.metadata.keyspaces:
-            ''' This keyspace already exists, nothing to do '''
-            return self._cluster.metadata.keyspaces[keyspace]
+        self.configure_cluster()
 
         settings = self.settings_dict
 
         keyspace_default_settings = {
-            'DURABLE_WRITES': True,
-            'REPLICATION_STRATEGY_CLASS': SimpleStrategy.name,
-            'REPLICATION_STRATEGY_OPTIONS': {
-                'replication_factor': 3
-            }
+            'durable_writes': True,
+            'strategy_class': SimpleStrategy.name,
+            'replication_factor': 3
         }
 
         keyspace_settings = settings.get(
@@ -261,55 +276,8 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
 
         keyspace_default_settings.update(keyspace_settings)
         keyspace_settings = keyspace_default_settings
-        keyspace_metadata = KeyspaceMetadata(
-            keyspace,
-            keyspace_settings['DURABLE_WRITES'],
-            keyspace_settings['REPLICATION_STRATEGY_CLASS'],
-            keyspace_settings['REPLICATION_STRATEGY_OPTIONS']
-        )
 
-        self._cluster.metadata.keyspaces[keyspace] = keyspace_metadata
-
-        session.execute(keyspace_metadata.as_cql_query())
-
-        return keyspace_metadata
-
-    def _open_session(
-        self,
-        keyspace=None
-    ):
-        if not keyspace or keyspace == 'default':
-            keyspace = self.settings_dict.get('DEFAULT_KEYSPACE')
-
-        if None is keyspace:
-            keyspace = 'django'
-
-        if not self._session or self._session.is_shutdown:
-            self._session = self._cluster.connect()
-            self._session.row_factory = dict_factory
-
-        try:
-            self._session.set_keyspace(keyspace)
-
-        except InvalidRequest:
-            '''
-            Try to configure and create the keyspace if we get an exception.
-            '''
-            self._create_keyspace(
-                keyspace,
-                session=self._session
-            )
-            self._session.set_keyspace(keyspace)
-
-        return self._session
-
-    def get_session(
-        self,
-        keyspace=None
-    ):
-        if not self._cluster:
-            self._cluster = self._configure_cluster()
-
-        return self._open_session(
-            keyspace=keyspace
+        create_keyspace(
+            keyspace, 
+            **keyspace_settings
         )

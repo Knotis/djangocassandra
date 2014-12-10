@@ -8,6 +8,14 @@ from django.db.models.sql.where import (
     OR
 )
 
+from django.conf import settings
+from django.db.models import (
+    Model,
+    CharField
+)
+
+from djangocassandra.db.backends.cassandra.base import DatabaseWrapper
+
 
 def _compare_rows(
     row1,

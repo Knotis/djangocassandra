@@ -8,6 +8,8 @@ DATABASES = {
         'PORT': 9042,
         'KEYSPACES': {
             'test': {
+                'replication_factor': 1,
+                'replication_strategy': 'SimpleStrategy'
             }
         }
     }
