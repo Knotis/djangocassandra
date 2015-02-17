@@ -1,19 +1,25 @@
 from django.conf import settings
+
 from django.db.models import (
     Model,
     CharField
 )
+
+from cqlengine.connection import get_cluster
+from cqlengine.management import delete_keyspace
+
 from djangocassandra.db.backends.cassandra.base import DatabaseWrapper
 from djangocassandra.db.backends.cassandra.compiler import SQLInsertCompiler
 
 
+
 def connect_db():
     connection = DatabaseWrapper(settings.DATABASES['default'])
-    connection.get_session()
+    connection.configure_cluster()
     return connection
 
 
-def create_db(connection, model):
+def create_model(connection, model):
     connection.creation.sql_create_model(
         model,
         None
@@ -26,7 +32,8 @@ def populate_db(connection, values):
 
 
 def destroy_db(connection):
-    if not None is connection:
-        session = connection.get_session()
-        for keyspace in settings.DATABASES['default']['KEYSPACES']:
-            session.execute('drop keyspace %s;' % keyspace,)
+    if None is not connection:
+        cluster = get_cluster()
+        keyspace_names = [key for key in settings.DATABASES['default']['KEYSPACES'].keys()]
+        for keyspace in keyspace_names:
+            delete_keyspace(keyspace)

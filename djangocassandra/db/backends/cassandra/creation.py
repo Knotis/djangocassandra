@@ -29,6 +29,17 @@ from cassandra.cqltypes import (
 
 from cassandra.util import OrderedDict
 
+from cqlengine import (
+    Model
+)
+
+from cqlengine.management import (
+    sync_table,
+    create_keyspace
+)
+
+from djangocassandra.db.models import get_column_family
+
 
 class DatabaseCreation(NonrelDatabaseCreation):
     data_typename_to_typeclass = {
@@ -86,6 +97,7 @@ class DatabaseCreation(NonrelDatabaseCreation):
         'TextField': UTF8Type.typename,
         'TimeField': TimestampType.typename,
         'URLField': VarcharType.typename,
+        'BinaryField': BytesType.typename,
         # You may use "list" for SetField, or even DictField and
         # EmbeddedModelField (if your database supports nested lists).
         # All following fields also support "string" and "bytes" as
@@ -112,39 +124,6 @@ class DatabaseCreation(NonrelDatabaseCreation):
         'BlobField': BytesType.typename
     }
 
-    '''
-    Table Options:
-
-    'comment': None,
-    'read_repair_chance': None,
-    'dclocal_read_repair_chance': None,
-    'replicate_on_write': None,
-    'gc_grace_seconds': None,
-    'bloom_filter_fp_chance': None,
-    'caching': None,
-    'compaction_strategy_class': None,
-    'compaction_strategy_options': None,
-    'min_compaction_threshold': None,
-    'max_compaction_threshold': None,
-    'compression_parameters': None,
-    'min_index_interval': None,
-    'max_index_interval': None,
-    'index_interval': None,
-    'speculative_retry': None,
-    'rows_per_partition_to_cache': None,
-    'memtable_flush_period_in_ms': None,
-    'populate_io_cache_on_flush': None,
-    'compaction': None,
-    'compression': None,
-    'default_time_to_live': None
-    '''
-    default_table_options = {
-    }
-
-    default_cassandra_model_settings = {
-        'table_options': default_table_options
-    }
-
     def db_type(
         self,
         field
@@ -169,8 +148,6 @@ class DatabaseCreation(NonrelDatabaseCreation):
         style,  # Used for styling output
         known_models=set()
     ):
-        connection_settings = self.connection.settings_dict
-
         meta = model._meta
 
         if (
@@ -180,37 +157,33 @@ class DatabaseCreation(NonrelDatabaseCreation):
         ):
             return [], {}
 
-        if hasattr(model, 'Cassandra'):
-            cassandra_settings = model.Cassandra.__dict__
-
-        else:
-            cassandra_settings = self.default_cassandra_model_settings
-
-        if hasattr(cassandra_settings, 'keyspace'):
-            keyspace = cassandra_settings.keyspace
-
-        else:
-            keyspace = connection_settings.get('DEFAULT_KEYSPACE')
-
-        keyspace_metadata = self.connection._cluster.metadata.keyspaces.get(
-            keyspace
+        column_family = get_column_family(
+            self.connection,
+            model
         )
-        if not keyspace_metadata:
-            keyspace_metadata = self.connection._create_keyspace(
-                keyspace
-            )
+        sync_table(column_family)
 
-        table_options = (
-            self.default_table_options.copy()
+        return [], {}
+
+    def _create_test_db(
+        self,
+        verbosity,
+        autoclobber,
+        keepdb=False
+    ):
+        test_database_name = self._get_test_db_name()
+
+        qn = self.connection.ops.quote_name
+
+        nodb_connection = self._nodb_connection
+
+        nodb_connection.create_keyspace(
+            qn(test_database_name)
         )
-        if hasattr(cassandra_settings, 'table_options'):
-            if not isinstance(cassandra_settings.table_optoins, dict):
-                raise DatabaseError(
-                    'The value of table_optoins in the Cassandra class '
-                    'must be a dict containing overrides for the default'
-                    'column family options.'
-                )
-            table_options.update(cassandra_settings.table_metadata)
+
+        return test_database_name
+
+'''
 
         table_metadata = TableMetadata(
             keyspace_metadata,
@@ -303,4 +276,4 @@ class DatabaseCreation(NonrelDatabaseCreation):
         session = self.connection.get_session(keyspace=keyspace)
         session.execute(table_metadata.as_cql_query())
 
-        return [], {}
+'''
