@@ -1,3 +1,6 @@
+from cassandra.meta import (
+    SimpleStrategy
+)
 SECRET_KEY = "foo"
 
 DATABASES = {
@@ -9,7 +12,7 @@ DATABASES = {
         'KEYSPACES': {
             'test': {
                 'replication_factor': 1,
-                'replication_strategy': 'SimpleStrategy'
+                'strategy_class': SimpleStrategy.name
             }
         }
     }

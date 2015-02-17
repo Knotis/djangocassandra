@@ -143,8 +143,12 @@ def get_column_family(
     if None is keyspace_settings:
         keyspace_settings = {}  # Replace with default keyspace settings.
 
-    replication_factor = keyspace_settings['replication_factor']
-    replication_strategy_class = keyspace_settings['replication_strategy']
+    replication_factor = keyspace_settings.get(
+        'replication_factor',
+
+    )
+
+    replication_strategy_class = keyspace_settings['strategy_class']
 
     create_keyspace(
         keyspace,
