@@ -7,6 +7,9 @@ from djangotoolbox.db.base import (
     NonrelDatabaseClient,
     NonrelDatabaseValidation
 )
+from django.db.backends.schema import (
+    BaseDatabaseSchemaEditor
+)
 
 from cassandra import (
     ConsistencyLevel
@@ -99,6 +102,22 @@ class DatabaseValidation(NonrelDatabaseValidation):
     pass
 
 
+class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
+    known_models = set()
+
+    def create_model(
+        self,
+        model
+    ):
+        self.connection.creation.sql_create_model(
+            model,
+            None,
+            known_models=self.known_models
+        )
+        if model._meta.db_table not in self.known_models:
+            self.known_models.add(model._meta.db_table)
+
+
 class DatabaseWrapper(NonrelDatabaseWrapper):
     def __init__(
         self,
@@ -119,6 +138,20 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         self.creation = DatabaseCreation(self)
         self.validation = DatabaseValidation(self)
         self.introspection = DatabaseIntrospection(self)
+
+    def schema_editor(self):
+        return CassandraSchemaEditor(self)
+
+    def get_session(self):
+        session = connection.get_session()
+        if session is not None:
+            return session
+
+        self.configure_cluster()
+
+        session = connection.get_session()
+        if session is not None:
+            return session
 
     def configure_cluster(
         self,
@@ -278,6 +311,6 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         keyspace_settings = keyspace_default_settings
 
         create_keyspace(
-            keyspace, 
+            keyspace,
             **keyspace_settings
         )

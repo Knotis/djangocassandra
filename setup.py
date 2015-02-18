@@ -16,6 +16,7 @@ setup(
     install_requires=[
         'django>=1.7',
         'djangotoolbox>=1.6.2, < 1.7',
+        'cassandra-driver>=2.1.4',
         'cqlengine>=0.20.0'
     ],
 )

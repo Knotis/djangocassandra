@@ -2,7 +2,6 @@ import itertools
 
 from django.db.backends import BaseDatabaseIntrospection
 from djangotoolbox.db.base import NonrelDatabaseIntrospection
-from cqlengine.connection import get_session
 
 
 class DatabaseIntrospection(NonrelDatabaseIntrospection):
@@ -10,13 +9,15 @@ class DatabaseIntrospection(NonrelDatabaseIntrospection):
         self,
         cursor=None
     ):
-        session = get_session()
+        session = self.connection.get_session()
         current_keyspace = session.keyspace
 
         keyspaces = [
-            key for key in self.connection.settings_dict.get('KEYSPACES').keys()
+            key for key in self.connection.settings_dict.get(
+                'KEYSPACES'
+            ).keys()
         ]
-        
+
         table_list = []
         session.set_keyspace('system')
         for keyspace in keyspaces:
