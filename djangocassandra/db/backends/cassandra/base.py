@@ -7,9 +7,6 @@ from djangotoolbox.db.base import (
     NonrelDatabaseClient,
     NonrelDatabaseValidation
 )
-from django.db.backends.schema import (
-    BaseDatabaseSchemaEditor
-)
 
 from cassandra import (
     ConsistencyLevel
@@ -23,6 +20,8 @@ from cqlengine.management import create_keyspace
 
 from .creation import DatabaseCreation
 from .introspection import DatabaseIntrospection
+from .schema import CassandraSchemaEditor
+from .cursor import CassandraCursor
 
 
 class DatabaseFeatures(NonrelDatabaseFeatures):
@@ -102,22 +101,6 @@ class DatabaseValidation(NonrelDatabaseValidation):
     pass
 
 
-class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
-    known_models = set()
-
-    def create_model(
-        self,
-        model
-    ):
-        self.connection.creation.sql_create_model(
-            model,
-            None,
-            known_models=self.known_models
-        )
-        if model._meta.db_table not in self.known_models:
-            self.known_models.add(model._meta.db_table)
-
-
 class DatabaseWrapper(NonrelDatabaseWrapper):
     def __init__(
         self,
@@ -142,52 +125,40 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
     def schema_editor(self):
         return CassandraSchemaEditor(self)
 
-    def get_session(self):
-        session = connection.get_session()
-        if session is not None:
-            return session
+    def create_cursor(self):
+        return CassandraCursor(self.connection)
 
-        self.configure_cluster()
-
-        session = connection.get_session()
-        if session is not None:
-            return session
-
-    def configure_cluster(
-        self,
-        keyspace=None
-    ):
+    def get_connection_params(self):
         '''
-        Configures and opens a connection to the cluster using
-        values from settings.py. See:
+        Gets cluster settings from Django settings module using keys/values
+        the same as in the datastax documentation See:
 
             http://datastax.github.io/python-driver/api/cassandra/cluster.html
 
         for descriptions of what each setting expects.
         '''
-        if not keyspace or keyspace == 'default':
-            keyspace = self.settings_dict.get(
-                'DEFAULT_KEYSPACE',
-                'django'
-            )
-
-        if hasattr(
-            self,
-            'cluster'
-        ) and None is not self.cluster:
-            return
+        keyspace = self.settings_dict.get(
+            'DEFAULT_KEYSPACE',
+            'django'
+        )
 
         settings = self.settings_dict
+        defaults = {
+            'CONTACT_POINTS': ('localhost',),
+            'PORT': 9042
+        }
 
         contact_points = settings.get(
             'CONTACT_POINTS',
-            ('localhost',)
+            defaults['CONTACT_POINTS']
         )
 
         port = self.settings_dict.get(
             'PORT',
-            9042
+            defaults['PORT']
         )
+
+        port = port if port else defaults['PORT']
 
         compression = settings.get(
             'COMPRESSION',
@@ -250,28 +221,45 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
             2.0
         )
 
+        return {
+            'lazy_connect': True,
+            'retry_connect': True,
+            'contact_points': contact_points,
+            'keyspace': keyspace,
+            'consistency': ConsistencyLevel.ONE,
+            'lazy_connect': True,
+            'retry_connect': True,
+            'port': port,
+            'compression': compression,
+            'auth_provider': auth_provider,
+            'load_balancing_policy': load_balancing_policy,
+            'reconnection_policy': reconnection_policy,
+            'default_retry_policy': default_retry_policy,
+            'conviction_policy_factory': conviction_policy_factory,
+            'metrics_enabled': metrics_enabled,
+            'connection_class': connection_class,
+            'ssl_options': ssl_options,
+            'sockopts': sockopts,
+            'cql_version': cql_version,
+            'executor_threads': executor_threads,
+            'max_schema_agreement_wait': max_schema_agreement_wait,
+            'control_connection_timeout': control_connection_timeout
+        }
+
+    def get_new_connection(self, connection_settings):
+        contact_points = connection_settings.pop(
+            'contact_points',
+            self.default_settings['CONTACT_POINTS']
+        )
+        keyspace = connection_settings.pop(
+            'keyspace',
+            self.settings_dict['DEFAULT_KEYSPACE']
+        )
+
         connection.setup(
             contact_points,
             keyspace,
-            consistency=ConsistencyLevel.ONE,
-            lazy_connect=True,
-            retry_connect=True, **{
-                'port': port,
-                'compression': compression,
-                'auth_provider': auth_provider,
-                'load_balancing_policy': load_balancing_policy,
-                'reconnection_policy': reconnection_policy,
-                'default_retry_policy': default_retry_policy,
-                'conviction_policy_factory': conviction_policy_factory,
-                'metrics_enabled': metrics_enabled,
-                'connection_class': connection_class,
-                'ssl_options': ssl_options,
-                'sockopts': sockopts,
-                'cql_version': cql_version,
-                'executor_threads': executor_threads,
-                'max_schema_agreement_wait': max_schema_agreement_wait,
-                'control_connection_timeout': control_connection_timeout
-           }
+            **connection_settings
         )
 
         self.cluster = connection.get_cluster()
@@ -291,8 +279,6 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         keyspace,
         session=None
     ):
-        self.configure_cluster()
-
         settings = self.settings_dict
 
         keyspace_default_settings = {
@@ -310,6 +296,7 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         keyspace_default_settings.update(keyspace_settings)
         keyspace_settings = keyspace_default_settings
 
+        self.ensure_connection()
         create_keyspace(
             keyspace,
             **keyspace_settings
