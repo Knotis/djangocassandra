@@ -9,8 +9,10 @@ class DatabaseIntrospection(NonrelDatabaseIntrospection):
         self,
         cursor=None
     ):
-        session = self.connection.get_session()
-        current_keyspace = session.keyspace
+        if None is cursor:
+            cursor = self.connection.cursor()
+
+        current_keyspace = cursor.keyspace
 
         keyspaces = [
             key for key in self.connection.settings_dict.get(
@@ -19,21 +21,23 @@ class DatabaseIntrospection(NonrelDatabaseIntrospection):
         ]
 
         table_list = []
-        session.set_keyspace('system')
-        for keyspace in keyspaces:
-            table_list = itertools.chain(
-                table_list, session.execute(
-                    ''.join([
-                        'SELECT columnfamily_name from ',
-                        'schema_columnfamilies where keyspace_name=\'',
-                        keyspace,  # TODO: SANITIZE ME JUST IN CASE!!!
-                        '\''
-                    ])
+        try:
+            cursor.set_keyspace('system')
+            for keyspace in keyspaces:
+                table_list = itertools.chain(
+                    table_list, cursor.execute(
+                        ''.join([
+                            'SELECT columnfamily_name from ',
+                            'schema_columnfamilies where keyspace_name=\'',
+                            keyspace,  # TODO: SANITIZE ME JUST IN CASE!!!
+                            '\''
+                        ])
+                    )
                 )
-            )
 
-        if None is not current_keyspace:
-            session.set_keyspace(current_keyspace)
+        finally:
+            if None is not current_keyspace:
+                cursor.set_keyspace(current_keyspace)
 
         return [row['columnfamily_name'] for row in table_list]
 
