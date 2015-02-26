@@ -1,4 +1,4 @@
-from cassandra.meta import (
+from cassandra.metadata import (
     SimpleStrategy
 )
 SECRET_KEY = "foo"

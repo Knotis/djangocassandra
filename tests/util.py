@@ -12,10 +12,10 @@ from djangocassandra.db.backends.cassandra.base import DatabaseWrapper
 from djangocassandra.db.backends.cassandra.compiler import SQLInsertCompiler
 
 
-
 def connect_db():
     connection = DatabaseWrapper(settings.DATABASES['default'])
-    connection.configure_cluster()
+    connection_params = connection.get_connection_params()
+    connection.get_new_connection(connection_params)
     return connection
 
 
@@ -33,7 +33,8 @@ def populate_db(connection, values):
 
 def destroy_db(connection):
     if None is not connection:
-        cluster = get_cluster()
-        keyspace_names = [key for key in settings.DATABASES['default']['KEYSPACES'].keys()]
+        keyspace_names = [
+            key for key in settings.DATABASES['default']['KEYSPACES'].keys()
+        ]
         for keyspace in keyspace_names:
             delete_keyspace(keyspace)

@@ -97,6 +97,12 @@ class CassandraCursor(object):
 
         return self.rows
 
+    def rollback(self):
+        pass
+
+    def commit(self):
+        pass
+
     def close(self):
         self._reset_attributes()
 

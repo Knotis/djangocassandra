@@ -102,6 +102,19 @@ class DatabaseValidation(NonrelDatabaseValidation):
 
 
 class DatabaseWrapper(NonrelDatabaseWrapper):
+    default_settings = {
+        'ENGINE': 'djangocassandra.db.backends.cassandra',
+        'DEFAULT_KEYSPACE': 'test',
+        'CONTACT_POINTS': ('localhost',),
+        'PORT': 9042,
+        'KEYSPACES': {
+            'test': {
+                'replication_factor': 1,
+                'strategy_class': SimpleStrategy.name
+            }
+        }
+    }
+
     def __init__(
         self,
         *args,
@@ -126,7 +139,7 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         return CassandraSchemaEditor(self)
 
     def create_cursor(self):
-        return CassandraCursor(self.connection)
+        return CassandraCursor(connection.get_session())
 
     def get_connection_params(self):
         '''
@@ -264,6 +277,8 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
 
         self.cluster = connection.get_cluster()
         self.keyspace = keyspace
+
+        return CassandraCursor(connection.get_session())
 
     def current_keyspace(self):
         if not self.keyspace:

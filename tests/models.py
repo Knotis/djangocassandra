@@ -22,7 +22,6 @@ from django.db.models import (
     SlugField,
     SmallIntegerField,
     TextField,
-    TimeField,
     URLField
 )
 
@@ -58,7 +57,6 @@ class ComplicatedTestModel(Model):
     slug_field = SlugField()
     smallinteger_field = SmallIntegerField()
     text_field = TextField()
-    time_field = TimeField(auto_now=True)
     url_field = URLField()
 
     def auto_populate(self):
@@ -66,8 +64,8 @@ class ComplicatedTestModel(Model):
         self.bigint_field = 2379238742398
         self.boolean_field = True
         self.commaseparatedinteger_field = '1, 2, 3, 4'
-        self.date_field = datetime.datetime.date(2014, 1, 1)
-        self.datetime_field = datetime.datetime.datetime(2014, 1, 1)
+        self.date_field = datetime.datetime(2014, 1, 1)
+        self.datetime_field = datetime.datetime(2014, 1, 1)
         self.decimal_field = 3.14
         self.email_field = 'example@example.com'
         self.file_field = 'test.txt'
