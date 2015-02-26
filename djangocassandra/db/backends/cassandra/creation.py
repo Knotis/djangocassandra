@@ -1,12 +1,4 @@
-from django.db.utils import DatabaseError
-
 from djangotoolbox.db.creation import NonrelDatabaseCreation
-
-from cassandra.metadata import (
-    TableMetadata,
-    ColumnMetadata,
-    IndexMetadata
-)
 
 from cassandra.cqltypes import (
     UUIDType,
@@ -27,15 +19,8 @@ from cassandra.cqltypes import (
     BytesType
 )
 
-from cassandra.util import OrderedDict
-
-from cqlengine import (
-    Model
-)
-
 from cqlengine.management import (
-    sync_table,
-    create_keyspace
+    sync_table
 )
 
 from djangocassandra.db.models import get_column_family

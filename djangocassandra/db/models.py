@@ -31,7 +31,7 @@ internal_type_to_column_map = {
     'SlugField': columns.Text,
     'SmallIntegerField': columns.Integer,
     'TextField': columns.Text,
-    'TimeField': columns.Text,
+    'TimeField': columns.DateTime,
     'URLField': columns.Text,
     'AbstractIterableField': columns.List,
     'ListField': columns.List,

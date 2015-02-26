@@ -77,5 +77,6 @@ class DatabaseInsertionTestCase(TestCase):
     def test_complicated_insertion(self):
         instance = ComplicatedTestModel()
         instance.auto_populate()
-        saved_instance = instance.save()
-        self.assertIsNotNone(saved_instance)
+        instance.save()
+        self.assertIsNotNone(instance)
+        self.assertIsNotNone(instance.pk)
