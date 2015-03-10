@@ -139,7 +139,11 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         return CassandraSchemaEditor(self)
 
     def create_cursor(self):
+        self.ensure_connection()
         return CassandraCursor(connection.get_session())
+
+    def _cursor(self):
+        return self.create_cursor()
 
     def get_connection_params(self):
         '''
