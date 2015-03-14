@@ -19,6 +19,12 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
     ):
         return True
 
+    def _create_db_table(
+        self,
+        column_family
+    ):
+        db_management.sync_table(column_family)
+
     def create_model(
         self,
         model
@@ -27,7 +33,7 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
             self.connection,
             model
         )
-        db_management.sync_table(column_family)
+        self._create_db_table(column_family)
 
     def delete_model(
         self,
@@ -112,7 +118,7 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
             model,
             field
         )
-        self.create_db_table(column_family)
+        self._create_db_table(column_family)
 
     def _add_field(
         self,
@@ -121,16 +127,19 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
         column_family=None
     ):
         if None is column_family:
-            column_family = get_column_family(model)
+            column_family = get_column_family(
+                self.connection,
+                model
+            )
 
         cql_field_type = internal_type_to_column_map[field.get_internal_type()]
         cql_field = cql_field_type(
             primary_key=field.primary_key,
             index=field.db_index,
-            db_field=field.db_column,
+            db_field=field.name,
             required=not field.blank
         )
-        setattr(column_family, field.db_name, cql_field)
+        setattr(column_family, field.name, cql_field)
         return column_family
         
     def remove_field(
@@ -142,7 +151,7 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
             model,
             field
         )
-        self.create_db_table(column_family)
+        self._create_db_table(column_family)
 
     def _remove_field(
         self,
@@ -151,9 +160,12 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
         column_family=None
     ):
         if None is column_family:
-            column_family = get_column_family(model)
+            column_family = get_column_family(
+                self.connection,
+                model
+            )
 
-        delattr(column_family, field.db_name)
+        delattr(column_family, field.name)
         return column_family
 
     def alter_field(
@@ -170,7 +182,10 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
         registery dirty and in a state that would require the
         web service to restart to function properly.
         '''
-        column_family = get_column_family(model)
+        column_family = get_column_family(
+            self.connection,
+            model
+        )
         self._remove_field(
             model,
             old_field,
@@ -182,4 +197,4 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
             column_family=column_family
         )
 
-        self.create_db_table(column_family)
+        self._create_db_table(column_family)
