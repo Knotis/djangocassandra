@@ -1,3 +1,5 @@
+import warnings
+
 from uuid import uuid4
 
 from django.db.utils import DatabaseError
@@ -11,15 +13,14 @@ from djangotoolbox.db.basecompiler import (
     NonrelDeleteCompiler
 )
 
-from cqlengine.query import BatchQuery
+from cqlengine.query import (
+    BatchQuery,
+    QueryException
+)
 
 from djangocassandra.db.models import (
     get_column_family
 )
-
-
-class InefficientQueryWarning(RuntimeWarning):
-    pass
 
 
 class CassandraQuery(NonrelQuery):
@@ -43,10 +44,10 @@ class CassandraQuery(NonrelQuery):
         self.ordering = None
         self.cache = None
         self.allows_inefficient = True  # TODO: Make this a config setting
-        self.can_filter_efficiently = True
-        self.can_order_efficiently = True
-        self.connection.ensure_connection()
+        self.inefficient_filtering = []
+        self.inefficient_ordering = []
 
+        self.connection.ensure_connection()
         self.column_family_class = get_column_family(
             self.connection,
             self.query.model
@@ -127,17 +128,23 @@ class CassandraQuery(NonrelQuery):
                     'Invalid ordering specification: %s' % order,
                 )
 
-            column_name = self.field_name_to_column_name.get(
-                field_name,
-                field_name
-            )
-
             order_string = ''.join([
-                '' if accending else '-',
+                '' if ascending else '-',
                 field_name
             ])
 
-            self.cql_query.order_by(order_string)
+            try:
+                self.cql_query.order_by(order_string)
+
+            except QueryException, e:
+                if not self.allows_inefficient:
+                    raise e
+
+                warnings.warn(
+                    'The current query cannot be executed efficiently: %s' % (
+                        e.message,
+                ))
+                self.inefficient_ordering.append(order_string)
 
     def add_filter(
         self,
@@ -199,7 +206,6 @@ class SQLInsertCompiler(NonrelInsertCompiler, SQLCompiler):
 
         with BatchQuery() as b:
             for row in values:
-
                 # HELP!:Is this the right place for this logic? I can't seem
                 # to figure out where Django adds the value for auto fields.
                 if meta.has_auto_field and meta.pk.column not in row.keys():
