@@ -2,9 +2,20 @@ import warnings
 
 from uuid import uuid4
 
-from django.db.utils import DatabaseError
+from collections import OrderedDict
+
+from django.db.utils import (
+    ProgrammingError,
+    NotSupportedError
+)
 
 from django.db.models.sql.constants import MULTI
+from django.db.models.sql.where import (
+    WhereNode,
+    AND,
+    OR
+)
+
 from djangotoolbox.db.basecompiler import (
     NonrelQuery,
     NonrelCompiler,
@@ -22,6 +33,18 @@ from djangocassandra.db.models import (
     get_column_family
 )
 
+from .exceptions import InefficientQueryError
+from .predicate import (
+    CompoundPredicate,
+    COMPOUND_OP_AND,
+    COMPOUND_OP_OR
+)
+
+from .utils import (
+    safe_call,
+    sort_rows
+)
+
 
 class CassandraQuery(NonrelQuery):
     MAX_RESULT_COUNT = 10000
@@ -37,11 +60,17 @@ class CassandraQuery(NonrelQuery):
         )
 
         self.meta = self.query.get_meta()
+        
+        if hasattr(self.query.model, 'CassandraMeta'):
+            self.cassandra_meta = self.query.model.CassandraMeta
+
+        else:
+            self.cassandra_meta = None
+
         self.pk_column = self.meta.pk.column
         self.column_family = self.meta.db_table
         self.columns = fields
         self.where = None
-        self.ordering = None
         self.cache = None
         self.allows_inefficient = True  # TODO: Make this a config setting
         self.inefficient_filtering = []
@@ -52,41 +81,112 @@ class CassandraQuery(NonrelQuery):
             self.connection,
             self.query.model
         )
-        self.cql_query = self.column_family_class.objects.all().values_list(
-            *[field.column for field in self.meta.fields]
+
+        self.column_names = [
+            field.db_column if field.db_column else field.column
+            for field in fields
+        ]
+        self.indexed_columns = [
+            field.db_column if field.db_column else field.column
+            for field in fields if field.db_index
+        ]
+        self.cql_query = self.column_family_class.objects.values_list(
+            *self.column_names
+        ).all()
+
+    def _get_rows_by_indexed_column(self, range_predicate):
+        if range_predicate._is_exact():
+            rows = self.cql_query.filter(**{
+                range_predicate.column: range_predicate.start
+            })
+
+        else:
+            if None is range_predicate.start:
+                start_op = None
+
+            else:
+                if range_predicate.start_inclusive:
+                    start_op = 'gte'
+                else:
+                    start_op = 'gt'
+                start_op = '__'.join([
+                    range_predicate.column,
+                    start_op
+                ])
+
+            if None is range_predicate.end:
+                end_op = None
+
+            else:
+                if range_predicate.end_inclusive:
+                    end_op = 'lte'
+                else:
+                    end_op = 'lt'
+                end_op = '__'.join([
+                    range_predicate.column,
+                    end_op
+                ])
+
+            query = self.cql_query
+            if None is not start_op:
+                query = query.filter(**{
+                    start_op: range_predicate.start
+                })
+    
+            if None is not end_op:
+                query = query.filter(**{
+                    end_op: range_predicate.end
+                })
+
+            rows = [query]
+                
+        return rows
+    
+    def get_row_range(self, range_predicate):
+        pk_column = self.query.get_meta().pk.column
+
+        '''
+        !!! Does this need to check for clustering key? !!!
+        '''
+        assert(
+            range_predicate.column == pk_column or
+            range_predicate.column in self.indexed_columns
         )
 
-    def _get_query_results(
-        self,
-        low_mark=None,
-        high_mark=None
-    ):
-        if None is not high_mark and high_mark <= low_mark:
-            return None
+        return self._get_rows_by_indexed_column(range_predicate)
+    
+    def get_all_rows(self):
+         return self.cql_query
+    
+    def _get_query_results(self):
+        if self.cache == None:
+            assert(self.root_predicate != None)
 
-        results = []
-        for result in self.cql_query:
-            result_dict = {}
+            self.cache = self.root_predicate.get_matching_rows(self)
 
-            for i in xrange(len(self.meta.fields)):
-                result_dict[self.meta.fields[i].name] = result[i]
+            if self.inefficient_ordering:
+                for ordering in self.inefficient_ordering:
+                    sort_rows(self.cache, ordering)
 
-            results.append(result_dict)
+        return self.cache
+    
+    @safe_call
+    def fetch(self, low_mark, high_mark):
+        if self.root_predicate == None:
+            raise DatabaseError('No root query node')
+        
+        if high_mark is not None and high_mark <= low_mark:
+            return
 
-        return results
+        results = self._get_query_results()
 
-    def fetch(
-        self,
-        low_mark=None,
-        high_mark=None
-    ):
-        results = self._get_query_results(
-            low_mark,
-            high_mark
-        )
+        if low_mark is not None or high_mark is not None:
+            results = results[low_mark:high_mark]
 
-        for result in results:
-            yield result
+        
+
+        for entity in results:
+            yield OrderedDict(zip(self.column_names, entity))
 
     def count(
         self,
@@ -105,9 +205,8 @@ class CassandraQuery(NonrelQuery):
         ordering
     ):
         if isinstance(ordering, bool):
+            self.reverse_order = not ordering
             return
-
-        self.ordering = []
 
         for order in ordering:
             if isinstance(order, basestring):
@@ -124,7 +223,7 @@ class CassandraQuery(NonrelQuery):
                 field_name = field.name
 
             else:
-                raise DatabaseError(
+                raise ProgrammingError(
                     'Invalid ordering specification: %s' % order,
                 )
 
@@ -133,50 +232,79 @@ class CassandraQuery(NonrelQuery):
                 field_name
             ])
 
-            try:
-                self.cql_query.order_by(order_string)
+            clustering_key_fields = []
+            if hasattr(self.query.model, 'CassandraMeta'):
+                clustering_key_fields = (
+                    self.query.model.CassandraMeta.clustering_key
+                )
 
-            except QueryException, e:
+            valid_order_field_index = len(self.ordering) + 1
+            if field_name != clustering_key_fields[valid_order_field_index]:
                 if not self.allows_inefficient:
-                    raise e
+                    raise InefficientQueryError(self.cql_query)
 
-                warnings.warn(
-                    'The current query cannot be executed efficiently: %s' % (
-                        e.message,
-                ))
-                self.inefficient_ordering.append(order_string)
+                warnings.warn(InefficientQueryError.message)
+                self.add_inefficient_order_by(order_string)
+                return
 
-    def add_filter(
-        self,
-        field,
-        lookup_type,
-        negated,
-        value
-    ):
-        if negated:
-            raise Exception('Cassandra does not support negated queries')
+            self.cql_query = self.cql_query.order_by(order_string)
+            self.ordering.append(order_string)
 
-        supported_lookup_types = [
-            'in',
-            'gt',
-            'gte',
-            'lt',
-            'lte',
-            'eq',
-        ]
+    @safe_call
+    def add_inefficient_order_by(self, ordering):
+        for order in ordering:
+            if order.startswith('-'):
+                field_name = order[1:]
+                reversed = True
+            else:
+                field_name = order
+                reversed = False
 
-        if lookup_type not in supported_lookup_types:
-            raise Exception(
-                'The lookup type "{}" is not supported'.format(lookup_type)
-            )
-
-        filter_params = {}
-        filter_params['__'.join([
-            field,
-            lookup_type
-        ])] = value
-
-        self.cql_query.filter(**filter_params)
+        self.ordering_spec.append((field_name, reversed))
+            
+    def init_predicate(self, parent_predicate, node):
+        if isinstance(node, WhereNode):
+            if node.connector == OR:
+                compound_op = COMPOUND_OP_OR
+            elif node.connector == AND:
+                compound_op = COMPOUND_OP_AND
+            else:
+                raise InvalidQueryOpException()
+            predicate = CompoundPredicate(compound_op, node.negated)
+            for child in node.children:
+                child_predicate = self.init_predicate(predicate, child)
+            if parent_predicate:
+                parent_predicate.add_child(predicate)
+        else:
+            column, lookup_type, db_type, value = self._decode_child(node)
+            db_value = self.convert_value_for_db(db_type, value)
+            assert parent_predicate
+            parent_predicate.add_filter(column, lookup_type, db_value)
+            predicate = None
+            
+        return predicate
+    
+    # FIXME: This is bad. We're modifying the WhereNode object that's passed in to us
+    # from the Django ORM. We should do the pruning as we build our predicates, not
+    # munge the WhereNode.
+    def remove_unnecessary_nodes(self, node, retain_root_node):
+        if isinstance(node, WhereNode):
+            child_count = len(node.children)
+            for i in range(child_count):
+                node.children[i] = self.remove_unnecessary_nodes(node.children[i], False)
+            if (not retain_root_node) and (not node.negated) and (len(node.children) == 1):
+                node = node.children[0]
+        return node
+        
+    @safe_call
+    def add_filters(self, filters):
+        """
+        Traverses the given Where tree and adds the filters to this query
+        """
+        
+        assert isinstance(filters,WhereNode)
+        self.remove_unnecessary_nodes(filters, True)
+        self.root_predicate = self.init_predicate(None, filters)
 
 
 class SQLCompiler(NonrelCompiler):
