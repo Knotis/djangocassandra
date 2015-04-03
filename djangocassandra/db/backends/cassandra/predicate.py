@@ -13,7 +13,10 @@
 #   limitations under the License.
 
 import re
-from .utils import combine_rows
+from .utils import (
+    combine_rows,
+    COMBINE_UNION
+)
 
 SECONDARY_INDEX_SUPPORT_ENABLED = True
 
@@ -109,7 +112,7 @@ class RangePredicate(object):
                     self.end = value
                     self.end_inclusive = True
                     return True
-            elif op == 'exact':
+            elif op == 'exact' or op == 'eq':
                 if self._matches_value(value):
                     self.start = self.end = value
                     self.start_inclusive = self.end_inclusive = True
@@ -148,7 +151,7 @@ class RangePredicate(object):
                     self.end = value
                     self.end_inclusive = True
                     return True
-            elif op == 'exact':
+            elif op == 'exact' or op == 'eq':
                 if self._matches_value(value):
                     return True
             elif op == 'startswith':
@@ -273,32 +276,32 @@ class CompoundPredicate(object):
             for child in self.children:
                 if child.can_evaluate_efficiently(pk_column, indexed_columns):
                     return True
-            else:
-                return False
+                else:
+                    return False
         elif self.op == COMPOUND_OP_OR:
             for child in self.children:
                 if not child.can_evaluate_efficiently(pk_column, indexed_columns):
                     return False
-            else:
-                return True
+                else:
+                    return True
         else:
             raise InvalidPredicateOpException()
 
     def row_matches_subset(self, row, subset):
         if self.op == COMPOUND_OP_AND:
+            matches = True
             for predicate in subset:
                 if not predicate.row_matches(row):
                     matches = False
                     break
-            else:
-                matches = True
+
         elif self.op == COMPOUND_OP_OR:
+            matches = False
             for predicate in subset:
                 if predicate.row_matches(row):
                     matches =  True
                     break
-            else:
-                matches = False
+
         else:
             raise InvalidPredicateOpException()
         
@@ -314,15 +317,32 @@ class CompoundPredicate(object):
         return False
     
     def add_filter(self, column, op, value):
-        if op in ('lt', 'lte', 'gt', 'gte', 'exact', 'startswith'):
-            for child in self.children:
-                if child.incorporate_range_op(column, op, value, self.op):
-                    return
-            else:
+        if op in ('lt', 'lte', 'gt', 'gte', 'eq', 'exact', 'startswith'):
+            if not len(self.children):
                 child = RangePredicate(column)
-                incorporated = child.incorporate_range_op(column, op, value, COMPOUND_OP_AND)
+                incorporated = child.incorporate_range_op(
+                    column,
+                    op,
+                    value,
+                    COMPOUND_OP_AND
+                )
                 assert incorporated
                 self.children.append(child)
+
+            else:
+                for child in self.children:
+                    if child.incorporate_range_op(column, op, value, self.op):
+                        return
+                    else:
+                        child = RangePredicate(column)
+                        incorporated = child.incorporate_range_op(
+                            column,
+                            op,
+                            value,
+                            COMPOUND_OP_AND
+                        )
+                        assert incorporated
+                        self.children.append(child)
         else:
             child = OperationPredicate(column, op, value)
             self.children.append(child)
@@ -339,15 +359,21 @@ class CompoundPredicate(object):
         # of rows so we only have to run the inefficient query predicates
         # over this smaller number of rows.
         if self.can_evaluate_efficiently(pk_column, query.indexed_columns):
+            range_predicates = []
             inefficient_predicates = []
             result = None
             for predicate in self.children:
-                if predicate.can_evaluate_efficiently(pk_column, query.indexed_columns):
-                    rows = predicate.get_matching_rows(query)
-                    result = combine_rows(result, rows, self.op, pk_column)
+                if predicate.can_evaluate_efficiently(
+                        pk_column,
+                        query.indexed_columns
+                ) and not inefficient_predicates:
+                    range_predicates.append(predicate)
 
                 else:
                     inefficient_predicates.append(predicate)
+
+            result = query.get_row_range(range_predicates)
+
         else:
             inefficient_predicates = self.children
             result = query.get_all_rows()
@@ -357,7 +383,12 @@ class CompoundPredicate(object):
             
         # Now 
         if len(inefficient_predicates) > 0:
-            result = [row for row in result if self.row_matches_subset(row, inefficient_predicates)]
+            result = [
+                row for row in result if self.row_matches_subset(
+                    row,
+                    inefficient_predicates
+                )
+            ]
             
         return result
 
