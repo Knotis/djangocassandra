@@ -73,7 +73,8 @@ class CassandraQuery(NonrelQuery):
         self.where = None
         self.cache = None
         self.allows_inefficient = True  # TODO: Make this a config setting
-        self.inefficient_filtering = []
+        self.ordering = []
+        self.filters = []
         self.inefficient_ordering = []
 
         self.connection.ensure_connection()
@@ -90,83 +91,111 @@ class CassandraQuery(NonrelQuery):
             field.db_column if field.db_column else field.column
             for field in fields if field.db_index
         ]
-        self.cql_query = self.column_family_class.objects.values_list(
-            *self.column_names
-        ).all()
 
-    def _get_rows_by_indexed_column(self, range_predicate):
-        if range_predicate._is_exact():
-            rows = self.cql_query.filter(**{
-                range_predicate.column: range_predicate.start
-            })
+        if hasattr(self.cassandra_meta, 'clustering_keys'):
+            self.clustering_keys = (
+                self.query.model.CassandraMeta.clustering_keys
+            )
 
         else:
-            if None is range_predicate.start:
-                start_op = None
+            self.clustering_keys = []
 
-            else:
-                if range_predicate.start_inclusive:
-                    start_op = 'gte'
-                else:
-                    start_op = 'gt'
-                start_op = '__'.join([
-                    range_predicate.column,
-                    start_op
-                ])
+        self.cql_query = self.column_family_class.objects.values_list(
+            *self.column_names
+        )
 
-            if None is range_predicate.end:
-                end_op = None
+    def _get_rows_by_indexed_column(self, range_predicates):
+        query = self.cql_query
 
-            else:
-                if range_predicate.end_inclusive:
-                    end_op = 'lte'
-                else:
-                    end_op = 'lt'
-                end_op = '__'.join([
-                    range_predicate.column,
-                    end_op
-                ])
-
-            query = self.cql_query
-            if None is not start_op:
+        for predicate in range_predicates:
+            if predicate._is_exact():
                 query = query.filter(**{
-                    start_op: range_predicate.start
-                })
-    
-            if None is not end_op:
-                query = query.filter(**{
-                    end_op: range_predicate.end
+                    predicate.column: predicate.start
                 })
 
-            rows = [query]
+            else:
+                if None is predicate.start:
+                    start_op = None
+
+                else:
+                    if predicate.start_inclusive:
+                        start_op = 'gte'
+                    else:
+                        start_op = 'gt'
+                    start_op = '__'.join([
+                        predicate.column,
+                        start_op
+                    ])
+
+                if None is predicate.end:
+                    end_op = None
+
+                else:
+                    if predicate.end_inclusive:
+                        end_op = 'lte'
+                    else:
+                        end_op = 'lt'
+                    end_op = '__'.join([
+                        predicate.column,
+                        end_op
+                    ])
+
+                if None is not start_op:
+                    query = query.filter(**{
+                        start_op: predicate.start
+                    })
+
+                if None is not end_op:
+                    query = query.filter(**{
+                        end_op: predicate.end
+                    })
                 
-        return rows
+        return query
     
-    def get_row_range(self, range_predicate):
-        pk_column = self.query.get_meta().pk.column
-
+    def get_row_range(self, range_predicates):
         '''
         !!! Does this need to check for clustering key? !!!
         '''
-        assert(
-            range_predicate.column == pk_column or
-            range_predicate.column in self.indexed_columns
-        )
+        if not isinstance(range_predicates, list):
+            range_predicates = list(range_predicates)
 
-        return self._get_rows_by_indexed_column(range_predicate)
+        for predicate in range_predicates:
+            assert(
+                predicate.column == self.pk_column or
+                predicate.column in self.indexed_columns
+            )
+
+        return self._get_rows_by_indexed_column(range_predicates)
     
     def get_all_rows(self):
-         return self.cql_query
+         return self.cql_query.all()
     
     def _get_query_results(self):
         if self.cache == None:
             assert(self.root_predicate != None)
 
-            self.cache = self.root_predicate.get_matching_rows(self)
+            rows = self.root_predicate.get_matching_rows(self)
+
+            if (self.root_predicate.can_evaluate_efficiently(
+                self.pk_column,
+                self.indexed_columns
+            ) and self.ordering):
+                assert not self.inefficient_ordering
+                for order in self.ordering:
+                    rows = rows.order_by(order)
+
+            elif self.ordering:
+                for order in self.ordering:
+                    self.add_inefficient_order_by(order)
+
+            self.cache = [OrderedDict(zip(
+                self.column_names,
+                row
+            )) for row in rows]
 
             if self.inefficient_ordering:
-                for ordering in self.inefficient_ordering:
-                    sort_rows(self.cache, ordering)
+                for order in self.inefficient_ordering:
+                    sort_rows(self.cache, order)
 
         return self.cache
     
@@ -186,7 +215,7 @@ class CassandraQuery(NonrelQuery):
         
 
         for entity in results:
-            yield OrderedDict(zip(self.column_names, entity))
+            yield entity
 
     def count(
         self,
@@ -232,35 +261,38 @@ class CassandraQuery(NonrelQuery):
                 field_name
             ])
 
-            clustering_key_fields = []
-            if hasattr(self.query.model, 'CassandraMeta'):
-                clustering_key_fields = (
-                    self.query.model.CassandraMeta.clustering_key
-                )
+            partition_key_filtered = (
+                self.pk_column in [filter[0] for filter in self.filters]
+            )
 
-            valid_order_field_index = len(self.ordering) + 1
-            if field_name != clustering_key_fields[valid_order_field_index]:
+            if (
+                self.ordering or
+                self.inefficient_ordering or
+                not partition_key_filtered or
+                field_name != self.clustering_keys[0]
+            ):
                 if not self.allows_inefficient:
                     raise InefficientQueryError(self.cql_query)
 
                 warnings.warn(InefficientQueryError.message)
-                self.add_inefficient_order_by(order_string)
-                return
 
-            self.cql_query = self.cql_query.order_by(order_string)
+                for order in self.ordering:
+                    self.add_inefficient_order_by(order)
+
+                self.add_inefficient_order_by(order_string)
+
             self.ordering.append(order_string)
 
     @safe_call
     def add_inefficient_order_by(self, ordering):
-        for order in ordering:
-            if order.startswith('-'):
-                field_name = order[1:]
-                reversed = True
-            else:
-                field_name = order
-                reversed = False
+        if ordering.startswith('-'):
+            field_name = ordering[1:]
+            reversed = True
+        else:
+            field_name = ordering
+            reversed = False
 
-        self.ordering_spec.append((field_name, reversed))
+        self.inefficient_ordering.append((field_name, reversed))
             
     def init_predicate(self, parent_predicate, node):
         if isinstance(node, WhereNode):
@@ -270,16 +302,20 @@ class CassandraQuery(NonrelQuery):
                 compound_op = COMPOUND_OP_AND
             else:
                 raise InvalidQueryOpException()
+
             predicate = CompoundPredicate(compound_op, node.negated)
+
             for child in node.children:
                 child_predicate = self.init_predicate(predicate, child)
+
             if parent_predicate:
                 parent_predicate.add_child(predicate)
         else:
-            column, lookup_type, db_type, value = self._decode_child(node)
-            db_value = self.convert_value_for_db(db_type, value)
+            decoded_child = self._decode_child(node)
             assert parent_predicate
-            parent_predicate.add_filter(column, lookup_type, db_value)
+
+            parent_predicate.add_filter(*decoded_child)
+            self.filters.append(decoded_child)
             predicate = None
             
         return predicate

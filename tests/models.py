@@ -89,3 +89,16 @@ class RealatedTestModelA(Model):
 
 class RelatedTestModelB(Model):
     pass
+
+
+class ClusterPrimaryKeyModel(Model):
+    class CassandraMeta:
+        clustering_keys = ['field_2', 'field_3']
+
+    field_1 = CharField(
+        primary_key=True,
+        max_length=32
+    )
+    field_2 = CharField(max_length=32)
+    field_3 = CharField(max_length=32)
+    data = CharField(max_length=64)

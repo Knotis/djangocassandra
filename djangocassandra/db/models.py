@@ -56,18 +56,73 @@ class ColumnFamilyMetaClass(CqlEngineModelMetaClass):
             return ColumnFamilyMetaClass.__column_families__[name]
 
         model = attrs.get('__model__')
+        if hasattr(model, 'CassandraMeta'):
+            cassandra_options = model.CassandraMeta
+
+        else:
+            cassandra_options = None
+
         if None is not model:
+            '''
+            Create primary/clustering keys first. 
+            '''
+            primary_key_field = model._meta.pk
+            column_type = internal_type_to_column_map[
+                primary_key_field.get_internal_type()
+            ]
+            column = column_type(
+                primary_key=True
+            )
+            attrs[
+                primary_key_field.db_column if
+                primary_key_field.db_column else
+                primary_key_field.column
+            ] = column
+
+            clustering_keys = []
+            if cassandra_options and hasattr(cassandra_options, 'clustering_keys'):
+                clustering_keys = cassandra_options.clustering_keys
+
+                for column_name in cassandra_options.clustering_keys:
+                    field = model._meta.get_field(column_name)
+                    if field.column == primary_key_field.column:
+                        # Skip primary key if it was included in the clustering keys.
+                        continue
+
+                    column_type = internal_type_to_column_map[
+                        field.get_internal_type()
+                    ]
+                    column = column_type(
+                        primary_key=True
+                    )
+                    attrs[
+                        field.db_column if
+                        field.db_column else
+                        field.column
+                    ] = column
+            
             for field in model._meta.fields:
+                field_name = (
+                    field.db_column if
+                    field.db_column else
+                    field.column
+                )
+                if field.primary_key or field_name in clustering_keys:
+                    continue
+                
                 column_type = internal_type_to_column_map[
                     field.get_internal_type()
                 ]
                 column = column_type(
-                    primary_key=field.primary_key,
                     index=field.db_index,
                     db_field=field.db_column,
                     required=not field.blank
                 )
-                attrs[field.column] = column
+                attrs[
+                    field.db_column if
+                    field.db_column else
+                    field.column
+                ] = column
 
         column_family = super(ColumnFamilyMetaClass, meta).__new__(
             meta,

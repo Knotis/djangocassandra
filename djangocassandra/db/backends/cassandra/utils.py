@@ -167,6 +167,9 @@ def sort_rows(rows, sort_spec):
     if sort_spec == None:
         return rows
 
+    if not isinstance(rows, list):
+        rows = list(rows)
+
     if (type(sort_spec) != list) and (type(sort_spec) != tuple):
         raise InvalidSortSpecException()
     
