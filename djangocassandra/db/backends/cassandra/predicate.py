@@ -13,6 +13,12 @@
 #   limitations under the License.
 
 import re
+import warnings
+
+from collections import OrderedDict
+
+from .exceptions import InefficientQueryError
+
 from .utils import (
     combine_rows,
     COMBINE_UNION
@@ -80,9 +86,8 @@ class RangePredicate(object):
     
     def can_evaluate_efficiently(self, pk_column, indexed_columns):
         return (
-            self.column == pk_column or (
-                self.column in indexed_columns and self._is_exact()
-            )
+            self.column == pk_column or
+            self.column in indexed_columns
         )
     
     def incorporate_range_op(self, column, op, value, parent_compound_op):
@@ -330,19 +335,27 @@ class CompoundPredicate(object):
                 self.children.append(child)
 
             else:
+                incorporated = None
                 for child in self.children:
-                    if child.incorporate_range_op(column, op, value, self.op):
-                        return
-                    else:
-                        child = RangePredicate(column)
-                        incorporated = child.incorporate_range_op(
-                            column,
-                            op,
-                            value,
-                            COMPOUND_OP_AND
-                        )
-                        assert incorporated
-                        self.children.append(child)
+                    incorporated = child.incorporate_range_op(
+                        column,
+                        op,
+                        value,
+                        self.op
+                    )
+                    if incorporated:
+                        break
+
+                if not incorporated:
+                    child = RangePredicate(column)
+                    incorporated = child.incorporate_range_op(
+                        column,
+                        op,
+                        value,
+                        COMPOUND_OP_AND
+                    )
+                    assert incorporated
+                    self.children.append(child)
         else:
             child = OperationPredicate(column, op, value)
             self.children.append(child)
@@ -358,21 +371,30 @@ class CompoundPredicate(object):
         # subset of the rows that is much smaller than the overall number
         # of rows so we only have to run the inefficient query predicates
         # over this smaller number of rows.
-        if self.can_evaluate_efficiently(pk_column, query.indexed_columns):
+        if self.can_evaluate_efficiently(
+                pk_column,
+                query.filterable_columns
+        ):
             range_predicates = []
             inefficient_predicates = []
             result = None
             for predicate in self.children:
                 if predicate.can_evaluate_efficiently(
                         pk_column,
-                        query.indexed_columns
-                ) and not inefficient_predicates:
+                        query.filterable_columns
+                ):
                     range_predicates.append(predicate)
 
                 else:
                     inefficient_predicates.append(predicate)
 
-            result = query.get_row_range(range_predicates)
+            cql_query = query.get_row_range(range_predicates)
+
+            if query.ordering:
+                for order in query.ordering:
+                    cql_query = cql_query.order_by(order)
+
+            result = cql_query
 
         else:
             inefficient_predicates = self.children
@@ -380,9 +402,24 @@ class CompoundPredicate(object):
         
         if None is result:
             result = []
-            
-        # Now 
-        if len(inefficient_predicates) > 0:
+
+        else:
+            result = [OrderedDict(zip(
+                query.column_names,
+                row
+            )) for row in result]
+
+
+        if (
+            inefficient_predicates or
+            query.inefficient_ordering
+        ):
+            if not query.allows_inefficient:
+                raise InefficientQueryError(query)
+
+            warnings.warn(InefficientQueryError.message)
+
+        if inefficient_predicates:
             result = [
                 row for row in result if self.row_matches_subset(
                     row,
@@ -390,5 +427,8 @@ class CompoundPredicate(object):
                 )
             ]
             
-        return result
+        if query.inefficient_ordering:
+            for order in query.inefficient_ordering:
+                sort_rows(result, order)
 
+        return result

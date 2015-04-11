@@ -115,6 +115,31 @@ class DatabaseClusteringKeyTestCase(TestCase):
         import django
         django.setup()
 
+    def inefficient_filter(self):
+        manager = ClusterPrimaryKeyModel.objects
+        all_rows = list(manager.all())
+
+        with warnings.catch_warnings(record=True) as w:
+            filtered_rows = list(manager.filter(field_3='aaaa'))
+
+            self.assertEqual(
+                1,
+                len(w)
+            )
+
+        filtered_inmem = [r for r in all_rows if r.field_3 == 'aaaa']
+
+        self.assertEqual(
+            len(filtered_rows),
+            len(filtered_inmem)
+        )
+
+        for r in range(len(filtered_rows)):
+            self.assertEqual(
+                filtered_rows[r].data,
+                filtered_inmem[r].data
+            )
+
     def test_pk_filter(self):
         manager = ClusterPrimaryKeyModel.objects
         all_rows = list(manager.all())
@@ -133,7 +158,54 @@ class DatabaseClusteringKeyTestCase(TestCase):
                 filtered_rows[i].data,
                 filtered_rows_inmem[i].data
             )
+
+    def test_clustering_key_filter(self):
+        manager = ClusterPrimaryKeyModel.objects
+        all_rows = list(manager.all())
+
+        with warnings.catch_warnings(record=True) as w:
+            filtered_rows = list(manager.filter(
+                field_1='bbbb',
+                field_2='aaaa',
+                field_3='aaaa'
+            ))
+
+            self.assertEqual(
+                0,
+                len(w)
+            )
+
+        with warnings.catch_warnings(record=True) as w:
+            filtered_rows = list(manager.filter(
+                field_1='bbbb'
+            ).filter(
+                field_2='aaaa'
+            ).filter(
+                field_3='aaaa'
+            ))
+
+            self.assertEqual(
+                0,
+                len(w)
+            )
             
+        filtered_rows_inmem = [
+            r for r in all_rows if
+            r.field_1 == 'bbbb' and
+            r.field_2 == 'aaaa' and
+            r.field_3 == 'aaaa'
+        ]
+
+        self.assertEqual(
+            len(filtered_rows),
+            len(filtered_rows_inmem)
+        )
+
+        for i in range(len(filtered_rows)):
+            self.assertEqual(
+                filtered_rows[i].data,
+                filtered_rows_inmem[i].data
+            )
 
     def test_orderby(self):
         manager = ClusterPrimaryKeyModel.objects
@@ -180,12 +252,3 @@ class DatabaseClusteringKeyTestCase(TestCase):
                 filtered_rows[i].data,
                 filtered_rows_ordered_desc[i].data
             )
-
-    '''
-    def test_inefficient_orderby(self):
-        self.assertIsNotNone(None)
-
-    def test_inefficient_filter(self):
-        self.assertIsNotNone(None)
-    '''
-
