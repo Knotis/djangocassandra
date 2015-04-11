@@ -5,6 +5,7 @@ from cqlengine.models import (
 )
 from cqlengine.management import create_keyspace
 
+
 internal_type_to_column_map = {
     'AutoField': columns.UUID,
     'RelatedAutoField': columns.UUID,
@@ -43,7 +44,7 @@ internal_type_to_column_map = {
 }
 
 
-class ColumnFamilyMetaClass(CqlEngineModelMetaClass):
+class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
     __column_families__ = {}
 
     def __new__(
@@ -52,8 +53,8 @@ class ColumnFamilyMetaClass(CqlEngineModelMetaClass):
         bases,
         attrs
     ):
-        if name in ColumnFamilyMetaClass.__column_families__:
-            return ColumnFamilyMetaClass.__column_families__[name]
+        if name in CqlColumnFamilyMetaClass.__column_families__:
+            return CqlColumnFamilyMetaClass.__column_families__[name]
 
         model = attrs.get('__model__')
         if hasattr(model, 'CassandraMeta'):
@@ -124,21 +125,21 @@ class ColumnFamilyMetaClass(CqlEngineModelMetaClass):
                     field.column
                 ] = column
 
-        column_family = super(ColumnFamilyMetaClass, meta).__new__(
+        column_family = super(CqlColumnFamilyMetaClass, meta).__new__(
             meta,
             name,
             bases,
             attrs
         )
 
-        ColumnFamilyMetaClass.__column_families__[name] = column_family
+        CqlColumnFamilyMetaClass.__column_families__[name] = column_family
         return column_family
 
 
-class ColumnFamily(CqlEngineModel):
+class CqlColumnFamily(CqlEngineModel):
     __model__ = None
     __abstract__ = True
-    __metaclass__ = ColumnFamilyMetaClass
+    __metaclass__ = CqlColumnFamilyMetaClass
 
 
 '''
@@ -224,7 +225,7 @@ def get_column_family(
 
     return type(
         str(model._meta.db_table),
-        (ColumnFamily,), {
+        (CqlColumnFamily,), {
             '__model__': model,
             'table_options': table_options
         }

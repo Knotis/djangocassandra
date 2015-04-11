@@ -1,8 +1,6 @@
-import warnings
+import itertools
 
 from uuid import uuid4
-
-from collections import OrderedDict
 
 from django.db.utils import (
     ProgrammingError,
@@ -33,7 +31,6 @@ from djangocassandra.db.models import (
     get_column_family
 )
 
-from .exceptions import InefficientQueryError
 from .predicate import (
     CompoundPredicate,
     COMPOUND_OP_AND,
@@ -104,10 +101,34 @@ class CassandraQuery(NonrelQuery):
             *self.column_names
         )
 
-    def _get_rows_by_indexed_column(self, range_predicates):
-        query = self.cql_query
+    @property
+    def filterable_columns(self):
+        return itertools.chain(
+            self.clustering_keys,
+            self.indexed_columns
+        )
 
-        for predicate in range_predicates:
+    def _get_rows_by_indexed_column(self, range_predicates):
+        # Let's sort the predicates in efficient order.
+        sorted_predicates = []
+        predicates_by_column = {
+            predicate.column: predicate for predicate in range_predicates
+        }
+        if self.pk_column in predicates_by_column:
+            sorted_predicates.append(
+                predicates_by_column[self.pk_column]
+            )
+
+        for column in self.clustering_keys:
+            if column in predicates_by_column:
+                sorted_predicates.append(
+                    predicates_by_column[column]
+                )
+
+        assert len(range_predicates) == len(sorted_predicates)
+
+        query = self.cql_query
+        for predicate in sorted_predicates:
             if predicate._is_exact():
                 query = query.filter(**{
                     predicate.column: predicate.start
@@ -162,7 +183,7 @@ class CassandraQuery(NonrelQuery):
         for predicate in range_predicates:
             assert(
                 predicate.column == self.pk_column or
-                predicate.column in self.indexed_columns
+                predicate.column in self.filterable_columns
             )
 
         return self._get_rows_by_indexed_column(range_predicates)
@@ -173,29 +194,7 @@ class CassandraQuery(NonrelQuery):
     def _get_query_results(self):
         if self.cache == None:
             assert(self.root_predicate != None)
-
-            rows = self.root_predicate.get_matching_rows(self)
-
-            if (self.root_predicate.can_evaluate_efficiently(
-                self.pk_column,
-                self.indexed_columns
-            ) and self.ordering):
-                assert not self.inefficient_ordering
-                for order in self.ordering:
-                    rows = rows.order_by(order)
-
-            elif self.ordering:
-                for order in self.ordering:
-                    self.add_inefficient_order_by(order)
-
-            self.cache = [OrderedDict(zip(
-                self.column_names,
-                row
-            )) for row in rows]
-
-            if self.inefficient_ordering:
-                for order in self.inefficient_ordering:
-                    sort_rows(self.cache, order)
+            self.cache = self.root_predicate.get_matching_rows(self)
 
         return self.cache
     
@@ -266,22 +265,16 @@ class CassandraQuery(NonrelQuery):
             )
 
             if (
-                self.ordering or
-                self.inefficient_ordering or
                 not partition_key_filtered or
-                field_name != self.clustering_keys[0]
+                field_name not in self.clustering_keys
             ):
-                if not self.allows_inefficient:
-                    raise InefficientQueryError(self.cql_query)
-
-                warnings.warn(InefficientQueryError.message)
-
                 for order in self.ordering:
                     self.add_inefficient_order_by(order)
 
                 self.add_inefficient_order_by(order_string)
 
-            self.ordering.append(order_string)
+            else:
+                self.ordering.append(order_string)
 
     @safe_call
     def add_inefficient_order_by(self, ordering):
@@ -337,7 +330,7 @@ class CassandraQuery(NonrelQuery):
         """
         Traverses the given Where tree and adds the filters to this query
         """
-        
+
         assert isinstance(filters,WhereNode)
         self.remove_unnecessary_nodes(filters, True)
         self.root_predicate = self.init_predicate(None, filters)
