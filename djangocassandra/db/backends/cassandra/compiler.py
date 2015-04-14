@@ -22,7 +22,7 @@ from djangotoolbox.db.basecompiler import (
     NonrelDeleteCompiler
 )
 
-from cqlengine.query import (
+from cassandra.cqlengine.query import (
     BatchQuery,
     QueryException
 )

@@ -14,9 +14,8 @@ setup(
         'djangocassandra.db.backends.cassandra'
     ],
     install_requires=[
-        'django>=1.7',
+        'django>=1.7, < 1.8',
         'djangotoolbox>=1.6.2, < 1.7',
         'cassandra-driver>=2.1.4',
-        'cqlengine>=0.20.0'
     ],
 )

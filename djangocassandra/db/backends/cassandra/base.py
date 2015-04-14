@@ -15,8 +15,8 @@ from cassandra.metadata import (
     SimpleStrategy
 )
 
-from cqlengine import connection
-from cqlengine.management import create_keyspace
+from cassandra.cqlengine import connection
+from cassandra.cqlengine.management import create_keyspace
 
 from .creation import DatabaseCreation
 from .introspection import DatabaseIntrospection
