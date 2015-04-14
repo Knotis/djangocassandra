@@ -1,4 +1,4 @@
-from cqlengine import management as db_management
+from cassandra.cqlengine import management as db_management
 
 from django.db.backends.schema import (
     BaseDatabaseSchemaEditor

@@ -5,8 +5,8 @@ from django.db.models import (
     CharField
 )
 
-from cqlengine.connection import get_cluster
-from cqlengine.management import delete_keyspace
+from cassandra.cqlengine.connection import get_cluster
+from cassandra.cqlengine.management import delete_keyspace
 
 from djangocassandra.db.backends.cassandra.base import DatabaseWrapper
 from djangocassandra.db.backends.cassandra.compiler import SQLInsertCompiler

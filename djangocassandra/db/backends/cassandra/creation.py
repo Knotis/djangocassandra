@@ -19,7 +19,7 @@ from cassandra.cqltypes import (
     BytesType
 )
 
-from cqlengine.management import (
+from cassandra.cqlengine.management import (
     sync_table
 )
 

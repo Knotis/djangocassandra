@@ -1,9 +1,9 @@
-from cqlengine import columns
-from cqlengine.models import (
+from cassandra.cqlengine import columns
+from cassandra.cqlengine.models import (
     Model as CqlEngineModel,
     ModelMetaClass as CqlEngineModelMetaClass
 )
-from cqlengine.management import create_keyspace
+from cassandra.cqlengine.management import create_keyspace
 
 
 internal_type_to_column_map = {

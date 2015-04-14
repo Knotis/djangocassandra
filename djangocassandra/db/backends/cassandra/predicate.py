@@ -20,6 +20,7 @@ from collections import OrderedDict
 from .exceptions import InefficientQueryError
 
 from .utils import (
+    sort_rows,
     combine_rows,
     COMBINE_UNION
 )
@@ -324,9 +325,9 @@ class CompoundPredicate(object):
     def add_filter(self, column, op, value):
         if op in ('lt', 'lte', 'gt', 'gte', 'eq', 'exact', 'startswith'):
             if not len(self.children):
-                child = RangePredicate(column)
+                child = RangePredicate(column.name)
                 incorporated = child.incorporate_range_op(
-                    column,
+                    column.name,
                     op,
                     value,
                     COMPOUND_OP_AND
@@ -338,7 +339,7 @@ class CompoundPredicate(object):
                 incorporated = None
                 for child in self.children:
                     incorporated = child.incorporate_range_op(
-                        column,
+                        column.name,
                         op,
                         value,
                         self.op
@@ -347,9 +348,9 @@ class CompoundPredicate(object):
                         break
 
                 if not incorporated:
-                    child = RangePredicate(column)
+                    child = RangePredicate(column.name)
                     incorporated = child.incorporate_range_op(
-                        column,
+                        column.name,
                         op,
                         value,
                         COMPOUND_OP_AND
@@ -357,7 +358,7 @@ class CompoundPredicate(object):
                     assert incorporated
                     self.children.append(child)
         else:
-            child = OperationPredicate(column, op, value)
+            child = OperationPredicate(column.name, op, value)
             self.children.append(child)
     
     def add_child(self, child_query_node):
