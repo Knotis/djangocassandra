@@ -19,3 +19,4 @@ tests/integration/ccm
 setuptools*.tar.gz
 setuptools*.egg
 venv/
+doc/build/
