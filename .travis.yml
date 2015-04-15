@@ -1,0 +1,16 @@
+language: python
+python:
+      - "2.7"
+
+install:
+    - "pip install ."
+    - "pip install nose"
+    - "pip install git+https://github.com/kavdev/djangotoolbox.git@patch-1"
+
+env:
+    - DJANGO_SETTINGS_MODULE=tests.settings
+
+script: nosetests
+
+services:
+      - cassandra
