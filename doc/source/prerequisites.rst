@@ -3,6 +3,8 @@
 Installation and Configuration
 ==============================
 
+.. _installcassandra:
+
 Installing Cassandra
 --------------------
 
