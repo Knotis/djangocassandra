@@ -48,8 +48,8 @@ class DatabaseInsertionTestCase(TestCase):
             field_3='raw'
         )
 
-        self.assertTrue(
-            isinstance(inserted.pk, UUID)
+        self.assertIsNotNone(
+            inserted.pk
         )
 
         self.assertEqual('foo', inserted.field_1)

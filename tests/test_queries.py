@@ -213,7 +213,7 @@ class DatabaseClusteringKeyTestCase(TestCase):
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter('always')
-            
+
             filtered_rows_ordered = list(
                 manager.filter(
                     field_1='bbbb'

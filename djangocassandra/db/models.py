@@ -7,7 +7,8 @@ from cassandra.cqlengine.management import create_keyspace
 
 
 internal_type_to_column_map = {
-    'AutoField': columns.UUID,
+    'AutoField': columns.Integer,
+    'AutoFieldUUID': columns.UUID,
     'RelatedAutoField': columns.UUID,
     'ForeignKey': columns.UUID,
     'OneToOneField': columns.UUID,
@@ -44,6 +45,18 @@ internal_type_to_column_map = {
 }
 
 
+def get_cql_column_type(field):
+    internal_type = field.get_internal_type()
+    if internal_type == 'ForeignKey':
+        internal_type = (
+            field.related.model._meta.pk.get_internal_type()
+        )
+
+    return internal_type_to_column_map[
+        internal_type
+    ]
+
+
 class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
     __column_families__ = {}
 
@@ -68,9 +81,7 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
             Create primary/clustering keys first. 
             '''
             primary_key_field = model._meta.pk
-            column_type = internal_type_to_column_map[
-                primary_key_field.get_internal_type()
-            ]
+            column_type = get_cql_column_type(primary_key_field)
             column = column_type(
                 primary_key=True
             )
@@ -90,9 +101,7 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
                         # Skip primary key if it was included in the clustering keys.
                         continue
 
-                    column_type = internal_type_to_column_map[
-                        field.get_internal_type()
-                    ]
+                    column_type = get_cql_column_type(field)
                     column = column_type(
                         primary_key=True
                     )
@@ -111,9 +120,7 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
                 if field.primary_key or field_name in clustering_keys:
                     continue
                 
-                column_type = internal_type_to_column_map[
-                    field.get_internal_type()
-                ]
+                column_type = get_cql_column_type(field)
                 column = column_type(
                     index=field.db_index,
                     db_field=field.db_column,

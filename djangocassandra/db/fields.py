@@ -1,9 +1,16 @@
 import uuid
 
 from django.db.models import AutoField
+from django.utils.translation import ugettext_lazy as _
 
 
 class AutoFieldUUID(AutoField):
+    description = _('UUID')
+
+    default_error_messages = {
+        'invalid': _("'%(value)s' value must be a valid UUID."),
+    }
+
     def to_python(
         self,
         value
@@ -32,3 +39,9 @@ class AutoFieldUUID(AutoField):
             return value
 
         return uuid.UUID(value)
+
+    def get_internal_type(self):
+        return 'AutoFieldUUID'
+
+    def get_auto_value(self):
+        return uuid.uuid4()

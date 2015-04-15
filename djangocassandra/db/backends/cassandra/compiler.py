@@ -261,16 +261,18 @@ class CassandraQuery(NonrelQuery):
             ])
 
             partition_key_filtered = (
-                self.pk_column in [filter[0] for filter in self.filters]
+                self.pk_column in [
+                    f[0].db_column if f[0].db_column
+                    else f[0].column for
+                    f in self.filters
+                ]
             )
 
             if (
                 not partition_key_filtered or
-                field_name not in self.clustering_keys
+                field_name not in self.clustering_keys or
+                self.inefficient_ordering
             ):
-                for order in self.ordering:
-                    self.add_inefficient_order_by(order)
-
                 self.add_inefficient_order_by(order_string)
 
             else:
@@ -363,10 +365,28 @@ class SQLInsertCompiler(NonrelInsertCompiler, SQLCompiler):
 
         with BatchQuery() as b:
             for row in values:
-                # HELP!:Is this the right place for this logic? I can't seem
-                # to figure out where Django adds the value for auto fields.
                 if meta.has_auto_field and meta.pk.column not in row.keys():
-                    row[meta.pk.column] = uuid4()
+                    if meta.pk.get_internal_type() == 'AutoField':
+                        '''
+                        Using the default integer based AutoField 
+                        is inefficient due to the fact that Cassandra
+                        has to count all the rows to determine the
+                        correct integer id.
+                        '''
+                        row[meta.pk.column] = (
+                            column_family.objects.all().count() + 1
+                        )
+
+                    elif hasattr(meta.pk, 'get_auto_value'):
+                        row[meta.pk.column] = meta.pk.get_auto_value()
+
+                    else:
+                        raise Exception(
+                            'Please define a "get_auto_value" method '
+                            'on your custom AutoField that returns the '
+                            'next appropriate value for automatic primary '
+                            'key for your database model.'
+                        )
 
                 inserted = column_family.batch(b).create(
                     **row
