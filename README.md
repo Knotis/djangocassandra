@@ -1,4 +1,5 @@
-![Build Status](https://api.travis-ci.org/Knotis/djangocassandra.png?branch=master)
+[![Build Status](https://api.travis-ci.org/Knotis/djangocassandra.png?branch=master)](https://travis-ci.org/Knotis/djangocassandra/)
+[![Coverage Status](https://coveralls.io/repos/Knotis/djangocassandra/badge.svg?branch=master)](https://coveralls.io/r/Knotis/djangocassandra?branch=master)
 
 # The Django Cassandra Database Backend
 
