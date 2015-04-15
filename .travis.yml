@@ -10,7 +10,14 @@ install:
 env:
     - DJANGO_SETTINGS_MODULE=tests.settings
 
-script: nosetests
-
 services:
       - cassandra
+
+before_script:
+  - pip install coveralls
+
+script:
+    - nosetests --with-coverage --cover-package=djangocassandra
+
+after_success:
+    - coveralls

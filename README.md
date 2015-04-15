@@ -1,3 +1,6 @@
+[![Build Status](https://api.travis-ci.org/Knotis/djangocassandra.png?branch=master)](https://travis-ci.org/Knotis/djangocassandra/)
+[![Coverage Status](https://coveralls.io/repos/Knotis/djangocassandra/badge.svg?branch=master)](https://coveralls.io/r/Knotis/djangocassandra?branch=master)
+
 # The Django Cassandra Database Backend
 
 The Cassandra database backend for Django has been developed to allow developers to utilize the Apache Cassandra Database in their Django projects.
