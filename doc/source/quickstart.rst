@@ -3,8 +3,9 @@
 Getting Started
 ===============
 
-This page will help you get up and running quickly with a basic environment.  If you haven't installed Apache Cassandra yet follow the instructions here: :ref:`install-cassandra`
-.. _quick-installation:
+This page will help you get up and running quickly with a basic environment.  If you haven't installed Apache Cassandra yet follow the instructions here: :ref:`installcassandra`
+
+.. _quickinstallation:
 
 Installation
 ------------
@@ -12,7 +13,7 @@ Installation
     | ``pip install djangocassandra``
     | ``pip install git+https://github.com/kavdev/djangotoolbox.git@patch-1``
 
-.. _quick-configuration:
+.. _quickconfiguration:
   
 Configuration (settings.py)
 ---------------------------
