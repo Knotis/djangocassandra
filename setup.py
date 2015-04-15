@@ -2,14 +2,13 @@ from distutils.core import setup
 
 setup(
     name='djangocassandra',
-    version='0.0.3',
+    version='0.0.4',
     description='Cassandra support for the Django web framework',
     long_description=(
         'The Cassandra database backend for Django has been '
         'developed to allow developers to utilize the Apache '
-        'Cassandra Database in their Django projects.'
-        '\nThis requires a django 1.7 branch of djangotoolbox '
-        'found at: https://github.com/kavdev/djangotoolbox/tree/patch-1'
+        'Cassandra Database in their Django projects. '
+        'Read the full documentation at https://djangocassandra.readthedocs.org'
     ),
     author='Seth Denner',
     author_email='seth@knotis.com',
@@ -39,5 +38,6 @@ setup(
     install_requires=[
         'django>=1.7, < 1.8',
         'cassandra-driver>=2.1.4',
+        'blist'
     ],
 )
