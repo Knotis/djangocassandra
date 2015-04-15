@@ -22,8 +22,11 @@ from django.db.models import (
     SlugField,
     SmallIntegerField,
     TextField,
-    URLField
+    URLField,
+    ForeignKey
 )
+
+from djangocassandra.db.fields import AutoFieldUUID
 
 
 class SimpleTestModel(Model):
@@ -83,12 +86,31 @@ class ComplicatedTestModel(Model):
         self.url_field = 'http://example.com'
 
 
-class RealatedTestModelA(Model):
-    pass
+class RelatedModelA(Model):
+    id = AutoFieldUUID(primary_key=True)
+    data = CharField(
+        max_length=64
+    )
 
 
-class RelatedTestModelB(Model):
-    pass
+class RelatedModelB(Model):
+    id = AutoFieldUUID(primary_key=True)
+    model_a = ForeignKey(
+        RelatedModelA,
+        null=True
+    )
+
+
+class RelatedModelC(Model):
+    id = AutoFieldUUID(primary_key=True)
+    model_a = ForeignKey(
+        RelatedModelA,
+        null=True
+    )
+    model_b = ForeignKey(
+        RelatedModelB,
+        null=True
+    )
 
 
 class ClusterPrimaryKeyModel(Model):
