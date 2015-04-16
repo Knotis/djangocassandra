@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='djangocassandra',
-    version='0.0.4',
+    version='0.1.0',
     description='Cassandra support for the Django web framework',
     long_description=(
         'The Cassandra database backend for Django has been '
@@ -18,7 +18,7 @@ setup(
     download_url='https://github.com/Knotis/djangocassandra/archive/master.zip',
     license='BSD License',
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
         'Framework :: Django :: 1.7',
         'Environment :: Web Environment',
         'Intended Audience :: Developers',
