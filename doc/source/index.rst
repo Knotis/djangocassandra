@@ -18,7 +18,7 @@ Overview
 
 **Have you ever thought?:**
 
-    "Jeez, the Djano ORM is really nice. I wish that I could use it with a cool NoSql databse like Apache Cassandra."
+    "Jeez, the Djano ORM is really nice. I wish that I could use it with a cool NoSql databse like Apache Cassandra." - You
 
 Finally the dream is real! Welcome to the first Django Database backend for Apache Cassandra that allows you to use the *vanilla* Django 1.7 ORM (1.8 support coming soon) to define and manipulate your database schema including a SchemEditor that enables the use of the migrate and makemigrations management commands that were added in Django 1.7.
 
