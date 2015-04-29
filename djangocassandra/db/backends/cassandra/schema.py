@@ -93,7 +93,13 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
                (disable reads on OLD_Keyspace)
             7) clean up OLD_Keyspace (drop schema, delete files, etc.)
         '''
-        pass
+        if (
+            new_db_table._meta.db_table !=
+            old_db_table._meta.db_table
+        ):
+            raise Exception('Renaming models not supported')
+
+        self.create_model(new_db_table)
 
     def alter_db_tablespace(
         self,

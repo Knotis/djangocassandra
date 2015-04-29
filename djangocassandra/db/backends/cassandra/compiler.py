@@ -104,6 +104,7 @@ class CassandraQuery(NonrelQuery):
     @property
     def filterable_columns(self):
         return itertools.chain(
+            [self.pk_column],
             self.clustering_keys,
             self.indexed_columns
         )
@@ -111,6 +112,7 @@ class CassandraQuery(NonrelQuery):
     def _get_rows_by_indexed_column(self, range_predicates):
         # Let's sort the predicates in efficient order.
         sorted_predicates = []
+        indexed_predicates = []
         predicates_by_column = {
             predicate.column: predicate for predicate in range_predicates
         }
@@ -125,12 +127,18 @@ class CassandraQuery(NonrelQuery):
                     predicates_by_column[column]
                 )
 
-        assert len(range_predicates) == len(sorted_predicates)
+        for predicate in range_predicates:
+            if (predicate.column in self.indexed_columns):
+                indexed_predicates.append(predicate)
 
-        query = self.cql_query
-        for predicate in sorted_predicates:
+        assert ((
+            len(sorted_predicates) +
+            len(indexed_predicates)
+        ) == len(range_predicates))
+
+        def filter_range(query, predicate):
             if predicate._is_exact():
-                query = query.filter(**{
+                return query.filter(**{
                     predicate.column: predicate.start
                 })
 
@@ -162,14 +170,27 @@ class CassandraQuery(NonrelQuery):
                     ])
 
                 if None is not start_op:
-                    query = query.filter(**{
+                    return query.filter(**{
                         start_op: predicate.start
                     })
 
                 if None is not end_op:
-                    query = query.filter(**{
+                    return query.filter(**{
                         end_op: predicate.end
                     })
+        
+        query = self.cql_query
+        for predicate in sorted_predicates:
+            query = filter_range(
+                query,
+                predicate
+            )
+
+        for predicate in indexed_predicates:
+            query = filter_range(
+                query,
+                predicate
+            )
                 
         return query
     
@@ -189,7 +210,8 @@ class CassandraQuery(NonrelQuery):
         return self._get_rows_by_indexed_column(range_predicates)
     
     def get_all_rows(self):
-         return self.cql_query.all()
+        import pdb; pdb.set_trace()
+        return self.cql_query.all()
     
     def _get_query_results(self):
         if self.cache == None:
@@ -220,12 +242,14 @@ class CassandraQuery(NonrelQuery):
         self,
         limit=None
     ):
+        import pdb; pdb.set_trace()
         return self.cql_query.count()
 
     def delete(
         self,
         columns=set()
     ):
+        import pdb; pdb.set_trace()
         return self.cql_query.delete()
 
     def order_by(
