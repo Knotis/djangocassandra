@@ -5,6 +5,7 @@ from django.db.backends.schema import (
 )
 
 from djangocassandra.db.models import (
+    CqlColumnFamilyMetaClass,
     get_column_family,
     internal_type_to_column_map
 )
@@ -138,14 +139,22 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
                 model
             )
 
+        db_field = (
+            field.db_column
+            if field.db_column
+            else field.column
+        )            
         cql_field_type = internal_type_to_column_map[field.get_internal_type()]
         cql_field = cql_field_type(
             primary_key=field.primary_key,
             index=field.db_index,
-            db_field=field.name,
+            db_field=db_field,
             required=not field.blank
         )
-        setattr(column_family, field.name, cql_field)
+        setattr(column_family, db_field, cql_field)
+        column_family._columns[db_field] = cql_field
+
+        CqlColumnFamilyMetaClass.update_column_family(column_family)
         return column_family
         
     def remove_field(
@@ -171,7 +180,11 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
                 model
             )
 
+        
         delattr(column_family, field.name)
+        del column_family._columns[db_field]
+
+        CqlColumnFamilyMetaClass.update_column_family(column_family)
         return column_family
 
     def alter_field(

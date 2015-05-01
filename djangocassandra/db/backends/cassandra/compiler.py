@@ -49,7 +49,8 @@ class CassandraQuery(NonrelQuery):
     def __init__(
         self,
         compiler,
-        fields
+        fields,
+        allows_inefficient=True
     ):
         super(CassandraQuery, self).__init__(
             compiler,
@@ -66,10 +67,10 @@ class CassandraQuery(NonrelQuery):
 
         self.pk_column = self.meta.pk.column
         self.column_family = self.meta.db_table
-        self.columns = fields
+        self.columns = self.meta.fields
         self.where = None
         self.cache = None
-        self.allows_inefficient = True  # TODO: Make this a config setting
+        self.allows_inefficient = allows_inefficient  # TODO: Make this a config setting
         self.ordering = []
         self.filters = []
         self.inefficient_ordering = []
@@ -81,12 +82,12 @@ class CassandraQuery(NonrelQuery):
         )
 
         self.column_names = [
-            field.db_column if field.db_column else field.column
-            for field in fields
+            column.db_column if column.db_column else column.column
+            for column in self.columns
         ]
         self.indexed_columns = [
-            field.db_column if field.db_column else field.column
-            for field in fields if field.db_index
+            column.db_column if column.db_column else column.column
+            for column in self.columns if column.db_index
         ]
 
         if hasattr(self.cassandra_meta, 'clustering_keys'):
@@ -99,7 +100,7 @@ class CassandraQuery(NonrelQuery):
 
         self.cql_query = self.column_family_class.objects.values_list(
             *self.column_names
-        )
+        ).allow_filtering()
 
     @property
     def filterable_columns(self):
@@ -210,7 +211,6 @@ class CassandraQuery(NonrelQuery):
         return self._get_rows_by_indexed_column(range_predicates)
     
     def get_all_rows(self):
-        import pdb; pdb.set_trace()
         return self.cql_query.all()
     
     def _get_query_results(self):
@@ -242,14 +242,12 @@ class CassandraQuery(NonrelQuery):
         self,
         limit=None
     ):
-        import pdb; pdb.set_trace()
         return self.cql_query.count()
 
     def delete(
         self,
         columns=set()
     ):
-        import pdb; pdb.set_trace()
         return self.cql_query.delete()
 
     def order_by(
@@ -372,7 +370,10 @@ class SQLCompiler(NonrelCompiler):
         return super(SQLCompiler, self).execute_sql(result_type)
 
 
-class SQLInsertCompiler(NonrelInsertCompiler, SQLCompiler):
+class SQLInsertCompiler(
+    NonrelInsertCompiler,
+    SQLCompiler
+):
     def insert(
         self,
         values,
@@ -426,12 +427,37 @@ class SQLInsertCompiler(NonrelInsertCompiler, SQLCompiler):
                 return inserted_row_keys
 
 
-class SQLUpdateCompiler(NonrelUpdateCompiler, SQLCompiler):
+class SQLUpdateCompiler(
+    NonrelUpdateCompiler,
+    SQLCompiler
+):
     def update(
         self,
         values
     ):
-        return NonrelUpdateCompiler.update(self, values)
+        value_dict = {}
+        fields = []
+        for value in values:
+            field = value[0]
+            fields.append(field)
+            value_dict[
+                field.db_column
+                if field.db_column
+                else field.column
+            ] = value[1]
+
+        query = CassandraQuery(
+            self,
+            fields,
+            allows_inefficient=False
+        )
+        query.add_filters(self.query.where)
+        range_predicates = []
+        if query.root_predicate.children:
+            for predicate in query.root_predicate.children:
+                range_predicates.append(predicate)
+        query.get_row_range(range_predicates).update(**value_dict)
+        return True
 
 
 class SQLDeleteCompiler(NonrelDeleteCompiler, SQLCompiler):

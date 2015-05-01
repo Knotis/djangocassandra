@@ -62,6 +62,11 @@ def get_cql_column_type(field):
 class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
     __column_families__ = {}
 
+    @staticmethod
+    def update_column_family(column_family):
+        assert issubclass(column_family, CqlEngineModel)
+        CqlColumnFamilyMetaClass.__column_families__[column_family.__name__] = column_family
+
     def __new__(
         meta,
         name,
