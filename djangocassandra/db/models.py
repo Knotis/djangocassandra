@@ -5,6 +5,8 @@ from cassandra.cqlengine.models import (
 )
 from cassandra.cqlengine.management import create_keyspace
 
+from .fields import AutoFieldUUID
+
 
 internal_type_to_column_map = {
     'AutoField': columns.Integer,
@@ -60,6 +62,11 @@ def get_cql_column_type(field):
 class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
     __column_families__ = {}
 
+    @staticmethod
+    def update_column_family(column_family):
+        assert issubclass(column_family, CqlEngineModel)
+        CqlColumnFamilyMetaClass.__column_families__[column_family.__name__] = column_family
+
     def __new__(
         meta,
         name,
@@ -82,6 +89,7 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
             '''
             primary_key_field = model._meta.pk
             column_type = get_cql_column_type(primary_key_field)
+
             column = column_type(
                 primary_key=True
             )
