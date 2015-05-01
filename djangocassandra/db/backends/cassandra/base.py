@@ -25,6 +25,7 @@ from .cursor import CassandraCursor
 
 
 class DatabaseFeatures(NonrelDatabaseFeatures):
+
     string_based_auto_field = True
 
     def __init__(self, connection):
