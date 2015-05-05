@@ -5,7 +5,7 @@ python:
 install:
     - "pip install ."
     - "pip install nose"
-    - "pip install git+https://github.com/kavdev/djangotoolbox.git@patch-1"
+    - "pip install git+https://github.com/sethdenner/djangotoolbox.git@issue-55"
 
 env:
     - DJANGO_SETTINGS_MODULE=tests.settings
