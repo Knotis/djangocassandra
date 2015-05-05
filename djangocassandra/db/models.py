@@ -5,6 +5,12 @@ from cassandra.cqlengine.models import (
 )
 from cassandra.cqlengine.management import create_keyspace
 
+from djangotoolbox.fields import (
+    ListField,
+    SetField,
+    DictField
+)
+
 from .fields import AutoFieldUUID
 
 
@@ -88,10 +94,17 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
             Create primary/clustering keys first. 
             '''
             primary_key_field = model._meta.pk
+            primary_field_name = (
+                primary_key_field.db_column
+                if primary_key_field.db_column
+                else primary_key_field.column
+            )
+
             column_type = get_cql_column_type(primary_key_field)
 
             column = column_type(
-                primary_key=True
+                primary_key=True,
+                db_field=primary_field_name
             )
             attrs[
                 primary_key_field.db_column if
@@ -105,13 +118,20 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
 
                 for column_name in cassandra_options.clustering_keys:
                     field = model._meta.get_field(column_name)
-                    if field.column == primary_key_field.column:
+                    field_name = (
+                        field.db_column if
+                        field.db_column else
+                        field.column
+                    )
+
+                    if field_name == primary_field_name:
                         # Skip primary key if it was included in the clustering keys.
                         continue
 
                     column_type = get_cql_column_type(field)
                     column = column_type(
-                        primary_key=True
+                        primary_key=True,
+                        db_field=field_name
                     )
                     attrs[
                         field.db_column if
@@ -129,16 +149,32 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
                     continue
                 
                 column_type = get_cql_column_type(field)
+
+                args = []
+                if (
+                    isinstance(field, DictField)
+                ):
+                    args.append(columns.Text)
+                    args.append(
+                        get_cql_column_type(field.item_field)
+                    )
+
+                elif (
+                    isinstance(field, ListField) or
+                    isinstance(field, SetField)
+                ):
+                    args.append(
+                        get_cql_column_type(field.item_field)
+                    )
+
                 column = column_type(
                     index=field.db_index,
-                    db_field=field.db_column,
-                    required=not field.blank
+                    db_field=field_name,
+                    required=not field.blank,
+                    *args
                 )
-                attrs[
-                    field.db_column if
-                    field.db_column else
-                    field.column
-                ] = column
+
+                attrs[field_name] = column
 
         column_family = super(CqlColumnFamilyMetaClass, meta).__new__(
             meta,
