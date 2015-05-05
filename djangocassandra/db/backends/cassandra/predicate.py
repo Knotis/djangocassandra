@@ -323,11 +323,16 @@ class CompoundPredicate(object):
         return False
     
     def add_filter(self, column, op, value):
+        column_name = (
+            column.db_column
+            if column.db_column
+            else column.column
+        )
         if op in ('lt', 'lte', 'gt', 'gte', 'eq', 'exact', 'startswith'):
             if not len(self.children):
-                child = RangePredicate(column.name)
+                child = RangePredicate(column_name)
                 incorporated = child.incorporate_range_op(
-                    column.name,
+                    column_name,
                     op,
                     value,
                     COMPOUND_OP_AND
@@ -339,7 +344,7 @@ class CompoundPredicate(object):
                 incorporated = None
                 for child in self.children:
                     incorporated = child.incorporate_range_op(
-                        column.name,
+                        column_name,
                         op,
                         value,
                         self.op
@@ -348,9 +353,9 @@ class CompoundPredicate(object):
                         break
 
                 if not incorporated:
-                    child = RangePredicate(column.name)
+                    child = RangePredicate(column_name)
                     incorporated = child.incorporate_range_op(
-                        column.name,
+                        column_name,
                         op,
                         value,
                         COMPOUND_OP_AND
@@ -358,7 +363,7 @@ class CompoundPredicate(object):
                     assert incorporated
                     self.children.append(child)
         else:
-            child = OperationPredicate(column.name, op, value)
+            child = OperationPredicate(column_name, op, value)
             self.children.append(child)
     
     def add_child(self, child_query_node):
