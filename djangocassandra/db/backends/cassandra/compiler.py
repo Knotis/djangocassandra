@@ -65,7 +65,11 @@ class CassandraQuery(NonrelQuery):
         else:
             self.cassandra_meta = None
 
-        self.pk_column = self.meta.pk.column
+        self.pk_column = (
+            self.meta.pk.db_column
+            if self.meta.pk.db_column
+            else self.meta.pk.column
+        )
         self.column_family = self.meta.db_table
         self.columns = self.meta.fields
         self.where = None
@@ -91,12 +95,12 @@ class CassandraQuery(NonrelQuery):
         ]
 
         if hasattr(self.cassandra_meta, 'clustering_keys'):
-            self.clustering_keys = (
+            self.clustering_columns = (
                 self.query.model.CassandraMeta.clustering_keys
             )
 
         else:
-            self.clustering_keys = []
+            self.clustering_columns = []
 
         self.cql_query = self.column_family_class.objects.values_list(
             *self.column_names
@@ -106,7 +110,7 @@ class CassandraQuery(NonrelQuery):
     def filterable_columns(self):
         return itertools.chain(
             [self.pk_column],
-            self.clustering_keys,
+            self.clustering_columns,
             self.indexed_columns
         )
 
@@ -122,7 +126,7 @@ class CassandraQuery(NonrelQuery):
                 predicates_by_column[self.pk_column]
             )
 
-        for column in self.clustering_keys:
+        for column in self.clustering_columns:
             if column in predicates_by_column:
                 sorted_predicates.append(
                     predicates_by_column[column]
@@ -180,20 +184,19 @@ class CassandraQuery(NonrelQuery):
                         end_op: predicate.end
                     })
         
-        query = self.cql_query
         for predicate in sorted_predicates:
-            query = filter_range(
-                query,
+            self.cql_query = filter_range(
+                self.cql_query,
                 predicate
             )
 
         for predicate in indexed_predicates:
-            query = filter_range(
-                query,
+            self.cql_query = filter_range(
+                self.cql_query,
                 predicate
             )
                 
-        return query
+        return self.cql_query
     
     def get_row_range(self, range_predicates):
         '''
@@ -242,13 +245,30 @@ class CassandraQuery(NonrelQuery):
         self,
         limit=None
     ):
-        return self.cql_query.count()
+        return len(
+            self.root_predicate.get_matching_rows(self)
+        )
+            
 
     def delete(
         self,
         columns=set()
     ):
-        return self.cql_query.delete()
+        if self.root_predicate.can_evaluate_efficiently(
+            self.pk_column,
+            self.clustering_columns,
+            self.indexed_columns
+        ):
+            self.root_predicate.get_matching_rows(self)
+            for r in self.cql_query:
+                r.delete()
+
+        else:
+            rows = self.root_predicate.get_matching_rows(self)
+            for row in rows:
+                self.column_family_class.get(**{
+                    self.pk_column: row[self.pk_column]
+                }).delete()
 
     def order_by(
         self,
@@ -291,14 +311,14 @@ class CassandraQuery(NonrelQuery):
             )
 
             if (
-                not partition_key_filtered or
-                field_name not in self.clustering_keys or
-                self.inefficient_ordering
+                partition_key_filtered
+                and field_name in self.clustering_columns 
+                and not self.inefficient_ordering
             ):
-                self.add_inefficient_order_by(order_string)
+                self.ordering.append(order_string)
 
             else:
-                self.ordering.append(order_string)
+                self.add_inefficient_order_by(order_string)
 
     @safe_call
     def add_inefficient_order_by(self, ordering):

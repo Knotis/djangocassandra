@@ -45,3 +45,16 @@ class AutoFieldUUID(AutoField):
 
     def get_auto_value(self):
         return uuid.uuid4()
+
+    def value_to_string(self, value):
+        if isinstance(value, basestring):
+            return value
+
+        try:
+            return value.hex
+        except (TypeError, ValueError):
+            raise exceptions.ValidationError(
+                self.error_messages['invalid'],
+                code='invalid',
+                params={'value': value},
+            )

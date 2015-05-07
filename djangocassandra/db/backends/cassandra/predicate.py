@@ -85,11 +85,21 @@ class RangePredicate(object):
             self.end_inclusive
         )
     
-    def can_evaluate_efficiently(self, pk_column, indexed_columns):
-        return (
-            self.column == pk_column or
-            self.column in indexed_columns
-        )
+    def can_evaluate_efficiently(
+        self,
+        pk_column,
+        clustering_columns,
+        indexed_columns
+    ):
+        if self._is_exact():
+            return (
+                self.column == pk_column or
+                self.column in indexed_columns or
+                self.column in clustering_columns
+            )
+
+        else:
+            return self.column in clustering_columns
     
     def incorporate_range_op(self, column, op, value, parent_compound_op):
         if column != self.column:
@@ -213,7 +223,12 @@ class OperationPredicate(object):
     def __repr__(self):
         return '(OP: ' + self.op + ':' + unicode(self.value) + ')'
     
-    def can_evaluate_efficiently(self, pk_column, indexed_columns):
+    def can_evaluate_efficiently(
+        self,
+        pk_column,
+        clustering_columns,
+        indexed_columns
+    ):
         return False
 
     def row_matches(self, row):
@@ -275,18 +290,31 @@ class CompoundPredicate(object):
         s += ')'
         return s
     
-    def can_evaluate_efficiently(self, pk_column, indexed_columns):
+    def can_evaluate_efficiently(
+        self,
+        pk_column,
+        clustering_columns,
+        indexed_columns
+    ):
         if self.negated:
             return False
         if self.op == COMPOUND_OP_AND:
             for child in self.children:
-                if child.can_evaluate_efficiently(pk_column, indexed_columns):
+                if child.can_evaluate_efficiently(
+                    pk_column,
+                    clustering_columns,
+                    indexed_columns
+                ):
                     return True
                 else:
                     return False
         elif self.op == COMPOUND_OP_OR:
             for child in self.children:
-                if not child.can_evaluate_efficiently(pk_column, indexed_columns):
+                if not child.can_evaluate_efficiently(
+                        pk_column,
+                        clustering_columns,
+                        indexed_columns
+                ):
                     return False
                 else:
                     return True
@@ -378,16 +406,18 @@ class CompoundPredicate(object):
         # of rows so we only have to run the inefficient query predicates
         # over this smaller number of rows.
         if self.can_evaluate_efficiently(
-                pk_column,
-                query.filterable_columns
+            pk_column,
+            query.clustering_columns,
+            query.indexed_columns
         ):
             range_predicates = []
             inefficient_predicates = []
             result = None
             for predicate in self.children:
                 if predicate.can_evaluate_efficiently(
-                        pk_column,
-                        query.filterable_columns
+                    pk_column,
+                    query.clustering_columns,
+                    query.filterable_columns
                 ):
                     range_predicates.append(predicate)
 
