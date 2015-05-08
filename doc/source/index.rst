@@ -8,7 +8,7 @@
 
 .. _index:
 
-Djangocassandra - The Django Cassnadra Database Backend
+Djangocassandra - The Django Cassandra Database Backend
 =======================================================
 
 .. _overview:
