@@ -39,7 +39,7 @@ class RelatedModelCreationTestCase(TestCase):
 
         objA = RelatedModelA.objects.create(data='FooBarLel')
         objB = RelatedModelB.objects.create(model_a=objA)
-        objC = RelatedModelC.objects.create(
+        RelatedModelC.objects.create(
             model_a=objA,
             model_b=objB
         )
@@ -95,7 +95,7 @@ class RelatedModelQueryTestCase(TestCase):
         obj_c0_stored = RelatedModelC.objects.get(
             pk=obj_c0.pk
         )
-        
+
         self.assertEqual(
             obj_a0.data,
             obj_a0_stored.data

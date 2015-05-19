@@ -1,10 +1,14 @@
 import uuid
 
-from django.db.models import AutoField
+from django.utils.six import with_metaclass
+from django.db.models import (
+    AutoField,
+    SubfieldBase
+)
 from django.utils.translation import ugettext_lazy as _
 
 
-class AutoFieldUUID(AutoField):
+class AutoFieldUUID(with_metaclass(SubfieldBase, AutoField)):
     description = _('UUID')
 
     default_error_messages = {
@@ -15,20 +19,11 @@ class AutoFieldUUID(AutoField):
         self,
         value
     ):
-        if (
-            value is None or
-            isinstance(value, uuid.UUID)
-        ):
-            return value
+        if isinstance(value, uuid.UUID):
+            return str(value)
 
-        try:
-            return uuid.UUID(value)
-        except (TypeError, ValueError):
-            raise exceptions.ValidationError(
-                self.error_messages['invalid'],
-                code='invalid',
-                params={'value': value},
-            )
+        else:
+            return value
 
     def get_prep_value(self, value):
         value = super(AutoField, self).get_prep_value(value)
@@ -51,7 +46,8 @@ class AutoFieldUUID(AutoField):
             return value
 
         try:
-            return value.hex
+            return str(value)
+
         except (TypeError, ValueError):
             raise exceptions.ValidationError(
                 self.error_messages['invalid'],
