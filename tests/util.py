@@ -1,15 +1,8 @@
 from django.conf import settings
 
-from django.db.models import (
-    Model,
-    CharField
-)
-
-from cassandra.cqlengine.connection import get_cluster
 from cassandra.cqlengine.management import delete_keyspace
 
 from djangocassandra.db.backends.cassandra.base import DatabaseWrapper
-from djangocassandra.db.backends.cassandra.compiler import SQLInsertCompiler
 
 
 def connect_db():
@@ -28,7 +21,7 @@ def create_model(connection, model):
 
 def populate_db(connection, values):
     for value in values:
-        value.save()    
+        value.save()
 
 
 def destroy_db(connection):

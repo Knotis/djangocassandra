@@ -188,7 +188,7 @@ class DatabaseClusteringKeyTestCase(TestCase):
                 0,
                 len(w)
             )
-            
+
         filtered_rows_inmem = [
             r for r in all_rows if
             r.field_1 == 'bbbb' and
@@ -219,7 +219,7 @@ class DatabaseClusteringKeyTestCase(TestCase):
                     field_1='bbbb'
                 ).order_by('field_2')
             )
-            
+
             filtered_rows_ordered_desc = list(
                 manager.filter(
                     field_1='bbbb'

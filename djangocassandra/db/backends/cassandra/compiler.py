@@ -58,7 +58,7 @@ class CassandraQuery(NonrelQuery):
         )
 
         self.meta = self.query.get_meta()
-        
+
         if hasattr(self.query.model, 'CassandraMeta'):
             self.cassandra_meta = self.query.model.CassandraMeta
 
@@ -183,7 +183,7 @@ class CassandraQuery(NonrelQuery):
                     return query.filter(**{
                         end_op: predicate.end
                     })
-        
+
         for predicate in sorted_predicates:
             self.cql_query = filter_range(
                 self.cql_query,
@@ -195,9 +195,9 @@ class CassandraQuery(NonrelQuery):
                 self.cql_query,
                 predicate
             )
-                
+
         return self.cql_query
-    
+
     def get_row_range(self, range_predicates):
         '''
         !!! Does this need to check for clustering key? !!!
@@ -212,22 +212,22 @@ class CassandraQuery(NonrelQuery):
             )
 
         return self._get_rows_by_indexed_column(range_predicates)
-    
+
     def get_all_rows(self):
         return self.cql_query.all()
-    
+
     def _get_query_results(self):
         if self.cache == None:
             assert(self.root_predicate != None)
             self.cache = self.root_predicate.get_matching_rows(self)
 
         return self.cache
-    
+
     @safe_call
     def fetch(self, low_mark, high_mark):
         if self.root_predicate == None:
             raise DatabaseError('No root query node')
-        
+
         if high_mark is not None and high_mark <= low_mark:
             return
 
@@ -236,7 +236,7 @@ class CassandraQuery(NonrelQuery):
         if low_mark is not None or high_mark is not None:
             results = results[low_mark:high_mark]
 
-        
+
 
         for entity in results:
             yield entity
@@ -248,7 +248,7 @@ class CassandraQuery(NonrelQuery):
         return len(
             self.root_predicate.get_matching_rows(self)
         )
-            
+
 
     def delete(
         self,
@@ -312,7 +312,7 @@ class CassandraQuery(NonrelQuery):
 
             if (
                 partition_key_filtered
-                and field_name in self.clustering_columns 
+                and field_name in self.clustering_columns
                 and not self.inefficient_ordering
             ):
                 self.ordering.append(order_string)
@@ -330,7 +330,7 @@ class CassandraQuery(NonrelQuery):
             reversed = False
 
         self.inefficient_ordering.append((field_name, reversed))
-            
+
     def init_predicate(self, parent_predicate, node):
         if isinstance(node, WhereNode):
             if node.connector == OR:
@@ -354,9 +354,9 @@ class CassandraQuery(NonrelQuery):
             parent_predicate.add_filter(*decoded_child)
             self.filters.append(decoded_child)
             predicate = None
-            
+
         return predicate
-    
+
     # FIXME: This is bad. We're modifying the WhereNode object that's passed in to us
     # from the Django ORM. We should do the pruning as we build our predicates, not
     # munge the WhereNode.
@@ -368,7 +368,7 @@ class CassandraQuery(NonrelQuery):
             if (not retain_root_node) and (not node.negated) and (len(node.children) == 1):
                 node = node.children[0]
         return node
-        
+
     @safe_call
     def add_filters(self, filters):
         """
@@ -413,7 +413,7 @@ class SQLInsertCompiler(
                 if meta.has_auto_field and meta.pk.column not in row.keys():
                     if meta.pk.get_internal_type() == 'AutoField':
                         '''
-                        Using the default integer based AutoField 
+                        Using the default integer based AutoField
                         is inefficient due to the fact that Cassandra
                         has to count all the rows to determine the
                         correct integer id.

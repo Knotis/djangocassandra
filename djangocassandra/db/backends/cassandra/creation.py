@@ -133,6 +133,7 @@ class DatabaseCreation(NonrelDatabaseCreation):
         style,  # Used for styling output
         known_models=set()
     ):
+        self.connection.create_keyspace()
         meta = model._meta
 
         if (

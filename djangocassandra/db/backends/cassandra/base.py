@@ -296,8 +296,6 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
 
     def create_keyspace(
         self,
-        keyspace,
-        session=None
     ):
         settings = self.settings_dict
 
@@ -310,7 +308,7 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         keyspace_settings = settings.get(
             'KEYSPACES', {}
         ).get(
-            keyspace, {}
+            self.keyspace, {}
         )
 
         keyspace_default_settings.update(keyspace_settings)
@@ -318,6 +316,6 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
 
         self.ensure_connection()
         create_keyspace(
-            keyspace,
+            self.keyspace,
             **keyspace_settings
         )

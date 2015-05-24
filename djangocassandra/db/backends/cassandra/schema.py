@@ -30,6 +30,7 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
         self,
         model
     ):
+        self.connection.create_keyspace()
         column_family = get_column_family(
             self.connection,
             model
@@ -83,7 +84,7 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
         '''
         Renaming the table isn't supported by Cassandra. This
         has to be done in a manual process as follows:
-            
+
             1) create schema for NEW_Keyspace
             2) stop writes to OLD_Keyspace from app (reads can continue)
             3) flush OLD_Keyspace on every node, via nodetool
@@ -143,7 +144,7 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
             field.db_column
             if field.db_column
             else field.column
-        )            
+        )
         cql_field_type = internal_type_to_column_map[field.get_internal_type()]
         cql_field = cql_field_type(
             primary_key=field.primary_key,
@@ -156,7 +157,7 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
 
         CqlColumnFamilyMetaClass.update_column_family(column_family)
         return column_family
-        
+
     def remove_field(
         self,
         model,
@@ -180,13 +181,12 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
                 model
             )
 
-        
         delattr(column_family, field.name)
         db_field = (
             field.db_column
             if field.db_column
             else field.column
-        )            
+        )
         del column_family._columns[db_field]
 
         CqlColumnFamilyMetaClass.update_column_family(column_family)
