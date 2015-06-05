@@ -104,7 +104,7 @@ class CassandraQuery(NonrelQuery):
 
         self.cql_query = self.column_family_class.objects.values_list(
             *self.column_names
-        ).allow_filtering()
+        ).allow_filtering().limit(1000000).timeout(20)
 
     @property
     def filterable_columns(self):
