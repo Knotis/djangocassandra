@@ -135,6 +135,8 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         self.creation = DatabaseCreation(self)
         self.validation = DatabaseValidation(self)
         self.introspection = DatabaseIntrospection(self)
+        self.session = None
+        self.cluster = None
 
     def schema_editor(self):
         return CassandraSchemaEditor(self)
@@ -265,6 +267,7 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         }
 
     def get_new_connection(self, connection_settings):
+
         contact_points = connection_settings.pop(
             'contact_points',
             self.default_settings['CONTACT_POINTS']
@@ -274,6 +277,10 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
             self.settings_dict['DEFAULT_KEYSPACE']
         )
 
+        self.keyspace = keyspace
+        self.session = connection.get_session()
+        if not(self.session is None or self.session.is_shutdown):
+            return CassandraCursor(self.session)
         connection.setup(
             contact_points,
             keyspace,
@@ -281,9 +288,9 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         )
 
         self.cluster = connection.get_cluster()
-        self.keyspace = keyspace
+        self.session = connection.get_session()
 
-        return CassandraCursor(connection.get_session())
+        return CassandraCursor(self.session)
 
     def current_keyspace(self):
         if not self.keyspace:
