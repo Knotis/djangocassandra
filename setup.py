@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='djangocassandra',
-    version='0.1.7',
+    version='0.1.8',
     description='Cassandra support for the Django web framework',
     long_description=(
         'The Cassandra database backend for Django has been '
@@ -40,7 +40,7 @@ setup(
     ],
     install_requires=[
         'django>=1.7, < 1.8',
-        'cassandra-driver>=2.1.4',
+        'cassandra-driver',
         'blist'
     ],
 )
