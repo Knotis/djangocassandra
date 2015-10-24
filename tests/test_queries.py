@@ -4,7 +4,8 @@ from unittest import TestCase
 
 from .models import (
     SimpleTestModel,
-    ClusterPrimaryKeyModel
+    ClusterPrimaryKeyModel,
+    ColumnFamilyTestModel
 )
 
 from .util import (
@@ -17,7 +18,6 @@ from .util import (
 class DatabaseSimpleQueryTestCase(TestCase):
     def setUp(self):
         self.connection = connect_db()
-
         self.cached_rows = {}
 
         '''
@@ -252,3 +252,81 @@ class DatabaseClusteringKeyTestCase(TestCase):
                 filtered_rows[i].data,
                 filtered_rows_ordered_desc[i].data
             )
+
+
+class ColumnFamilyModelPagingQueryTestCase(TestCase):
+    def setUp(self):
+        self.connection = connect_db()
+
+        self.cached_rows = {}
+
+        '''
+        Let's create some simple data.
+        '''
+        create_model(
+            self.connection,
+            ColumnFamilyTestModel
+        )
+
+        field_names = [
+            field.name if field.get_internal_type() != 'AutoField' and
+            field.db_column != 'pk__token' else None
+            for field in ColumnFamilyTestModel._meta.fields
+        ]
+        field_values = ['foo', 'bar', 'raw', 'awk', 'lik', 'sik', 'dik', 'doc']
+
+        self.total_rows = 10
+        self.created_rows = 0
+        for x in xrange(self.total_rows):
+            test_data = {}
+            for name in field_names:
+                if not name:
+                    continue
+
+                test_data[name] = field_values[x % len(field_values)]
+
+            if test_data['field_1'] in self.cached_rows:
+                continue
+
+            created_instance = ColumnFamilyTestModel.objects.create(
+                **test_data
+            )
+            self.cached_rows[created_instance.pk] = created_instance
+            self.created_rows += 1
+
+        import django
+        django.setup()
+
+    def tearDown(self):
+        destroy_db(self.connection)
+
+    def test_paged_query(self):
+        all_results = []
+        one_result = ColumnFamilyTestModel.objects.all()[:1]
+        self.assertEqual(len(one_result), 1)
+        all_results.extend(one_result)
+        next_result = one_result.next()
+        self.assertEqual(len(next_result), 1)
+        all_results.extend(next_result)
+
+        self.assertNotEqual(
+            one_result[0].pk,
+            next_result[0].pk
+        )
+        self.assertNotEqual(
+            one_result[0].field_2,
+            next_result[0].field_2
+        )
+        self.assertNotEqual(
+            one_result[0].field_3,
+            next_result[0].field_3
+        )
+
+        for i in xrange(self.created_rows + 10):
+            next_result = next_result.next()
+            if not len(next_result):
+                break
+
+            all_results.extend(next_result)
+
+        self.assertEqual(len(all_results), self.created_rows)
