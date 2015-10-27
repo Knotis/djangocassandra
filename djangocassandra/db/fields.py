@@ -2,10 +2,63 @@ import uuid
 
 from django.utils.six import with_metaclass
 from django.db.models import (
+    Field,
     AutoField,
     SubfieldBase
 )
 from django.utils.translation import ugettext_lazy as _
+
+from cassandra.cqlengine.functions import Token
+
+
+class TokenPartitionKeyField(Field):
+    def __init__(
+        self,
+        *args,
+        **kwargs
+    ):
+        update_kwargs = {
+            'null': True,
+            'blank': True,
+            'editable': False,
+            'db_column': 'pk__token'
+        }
+
+        kwargs.update(update_kwargs)
+
+        super(TokenPartitionKeyField, self).__init__(
+            *args,
+            **kwargs
+        )
+
+    def contribute_to_class(
+        self,
+        cls,
+        name
+    ):
+        super(TokenPartitionKeyField, self).contribute_to_class(
+            cls,
+            name
+        )
+
+        setattr(cls, name, self)
+
+    def __get__(
+        self,
+        instance,
+        instance_type=None
+    ):
+        if None is instance:
+            return self
+
+        return Token(instance.pk)
+
+    def __set__(
+        self,
+        instance,
+        value
+    ):
+        pass
 
 
 class AutoFieldUUID(with_metaclass(SubfieldBase, AutoField)):
@@ -49,7 +102,7 @@ class AutoFieldUUID(with_metaclass(SubfieldBase, AutoField)):
             return str(value)
 
         except (TypeError, ValueError):
-            raise exceptions.ValidationError(
+            raise Exception(
                 self.error_messages['invalid'],
                 code='invalid',
                 params={'value': value},

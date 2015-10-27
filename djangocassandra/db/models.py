@@ -1,3 +1,8 @@
+from django.db.models import (
+    Model
+)
+from django.db.models.manager import Manager
+
 from cassandra.cqlengine import columns
 from cassandra.cqlengine.models import (
     Model as CqlEngineModel,
@@ -9,6 +14,9 @@ from djangotoolbox.fields import (
     SetField,
     DictField
 )
+
+from .fields import TokenPartitionKeyField
+from .query import QuerySet
 from .exception import DatabaseError
 
 
@@ -144,6 +152,9 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
                     ] = column
 
             for field in model._meta.fields:
+                if isinstance(field, TokenPartitionKeyField):
+                    continue
+
                 field_name = (
                     field.db_column if
                     field.db_column else
@@ -259,7 +270,7 @@ def get_column_family(
     if hasattr(cassandra_settings, 'table_options'):
         if not isinstance(cassandra_settings.table_optoins, dict):
             raise DatabaseError(
-                'The value of table_optoins in the Cassandra class '
+                'The value of table_options in the Cassandra class '
                 'must be a dict containing overrides for the default'
                 'column family options.'
             )
@@ -272,3 +283,26 @@ def get_column_family(
             'table_options': table_options
         }
     )
+
+
+class ColumnFamilyManager(Manager.from_queryset(QuerySet)):
+    pass
+
+
+class ColumnFamilyModel(Model):
+    class Meta:
+        abstract = True
+
+    pk_token = TokenPartitionKeyField()
+
+    def __init__(
+        self,
+        *args,
+        **kwargs
+    ):
+        super(ColumnFamilyModel, self).__init__(
+            *args,
+            **kwargs
+        )
+
+    objects = ColumnFamilyManager()

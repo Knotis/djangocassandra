@@ -2,10 +2,9 @@ from django.conf import settings
 
 from cassandra.cqlengine.management import delete_keyspace
 
-from djangocassandra.db.backends.cassandra.base import DatabaseWrapper
-
 
 def connect_db():
+    from djangocassandra.db.backends.cassandra.base import DatabaseWrapper
     connection = DatabaseWrapper(settings.DATABASES['default'])
     connection_params = connection.get_connection_params()
     connection.get_new_connection(connection_params)

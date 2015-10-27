@@ -13,19 +13,17 @@
 #   limitations under the License.
 
 import re
+import itertools
 import warnings
 
 from collections import OrderedDict
 
 from .exceptions import InefficientQueryError
 
-from .utils import (
-    sort_rows,
-    combine_rows,
-    COMBINE_UNION
-)
+from .utils import sort_rows
 
 SECONDARY_INDEX_SUPPORT_ENABLED = True
+
 
 class InvalidSortSpecException(Exception):
     def __init__(self):
@@ -34,11 +32,13 @@ class InvalidSortSpecException(Exception):
             'tuple/list or a tuple/list of sort specs'
         )
 
+
 class InvalidRowCombinationOpException(Exception):
     def __init__(self):
         super(InvalidRowCombinationOpException, self).__init__(
             'Invalid row combination operation'
         )
+
 
 class InvalidPredicateOpException(Exception):
     def __init__(self):
@@ -49,6 +49,7 @@ class InvalidPredicateOpException(Exception):
 
 COMPOUND_OP_AND = 1
 COMPOUND_OP_OR = 2
+
 
 class RangePredicate(object):
     def __init__(
@@ -64,7 +65,7 @@ class RangePredicate(object):
         self.start_inclusive = start_inclusive
         self.end = end
         self.end_inclusive = end_inclusive
-    
+
     def __repr__(self):
         s = '(RANGE: '
         if self.start:
@@ -84,7 +85,7 @@ class RangePredicate(object):
             self.start_inclusive and
             self.end_inclusive
         )
-    
+
     def can_evaluate_efficiently(
         self,
         pk_column,
@@ -94,17 +95,21 @@ class RangePredicate(object):
         if self._is_exact():
             return (
                 self.column == pk_column or
+                self.column == 'pk__token' or
                 self.column in indexed_columns or
                 self.column in clustering_columns
             )
 
         else:
-            return self.column in clustering_columns
-    
+            return self.column in itertools.chain(
+                clustering_columns,
+                ['pk__token']
+            )
+
     def incorporate_range_op(self, column, op, value, parent_compound_op):
         if column != self.column:
             return False
-        
+
         # FIXME: The following logic could probably be tightened up a bit
         # (although perhaps at the expense of clarity?)
         if parent_compound_op == COMPOUND_OP_AND:
@@ -206,11 +211,12 @@ class RangePredicate(object):
     def row_matches(self, row):
         value = row.get(self.column, None)
         return self._matches_value(value)
-    
+
     def get_matching_rows(self, query):
         rows = query.get_row_range(self)
         return rows
-    
+
+
 class OperationPredicate(object):
     def __init__(self, column, op, value=None):
         self.column = column
@@ -219,10 +225,10 @@ class OperationPredicate(object):
         if op == 'regex' or op == 'iregex':
             flags = re.I if op == 'iregex' else 0
             self.pattern = re.compile(value, flags)
-    
+
     def __repr__(self):
         return '(OP: ' + self.op + ':' + unicode(self.value) + ')'
-    
+
     def can_evaluate_efficiently(
         self,
         pk_column,
@@ -435,7 +441,7 @@ class CompoundPredicate(object):
         else:
             inefficient_predicates = self.children
             result = query.get_all_rows()
-        
+
         if None is result:
             result = []
 
@@ -444,7 +450,6 @@ class CompoundPredicate(object):
                 query.column_names,
                 row
             )) for row in result]
-
 
         if (
             inefficient_predicates or
@@ -462,7 +467,7 @@ class CompoundPredicate(object):
                     inefficient_predicates
                 )
             ]
-            
+
         if query.inefficient_ordering:
             for order in query.inefficient_ordering:
                 sort_rows(result, order)

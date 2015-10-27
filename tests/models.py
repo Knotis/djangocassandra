@@ -27,6 +27,20 @@ from django.db.models import (
 )
 
 from djangocassandra.db.fields import AutoFieldUUID
+from djangocassandra.db.models import ColumnFamilyModel
+
+
+class ColumnFamilyTestModel(ColumnFamilyModel):
+    field_1 = CharField(
+        primary_key=True,
+        max_length=32
+    )
+    field_2 = CharField(
+        max_length=32
+    )
+    field_3 = CharField(
+        max_length=32
+    )
 
 
 class SimpleTestModel(Model):

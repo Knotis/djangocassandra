@@ -1,10 +1,7 @@
 import itertools
 
-from uuid import uuid4
-
 from django.db.utils import (
-    ProgrammingError,
-    NotSupportedError
+    ProgrammingError
 )
 
 from django.db.models.sql.constants import MULTI
@@ -22,13 +19,13 @@ from djangotoolbox.db.basecompiler import (
     NonrelDeleteCompiler
 )
 
-from cassandra.cqlengine.query import (
-    BatchQuery,
-    QueryException
-)
+from cassandra.cqlengine.query import BatchQuery
 
 from djangocassandra.db.models import (
     get_column_family
+)
+from djangocassandra.db.fields import (
+    TokenPartitionKeyField
 )
 
 from .predicate import (
@@ -38,8 +35,7 @@ from .predicate import (
 )
 
 from .utils import (
-    safe_call,
-    sort_rows
+    safe_call
 )
 
 
@@ -71,10 +67,22 @@ class CassandraQuery(NonrelQuery):
             else self.meta.pk.column
         )
         self.column_family = self.meta.db_table
-        self.columns = self.meta.fields
+
+        self.columns = []
+        model_fields = self.meta.fields
+        for f in model_fields:
+            if isinstance(f, TokenPartitionKeyField):
+                continue
+
+            self.columns.append(f)
+
         self.where = None
+        self.limit = 1000000  # TODO: Make this a config setting
+        self.timeout = None  # TODO: Make this a config setting
         self.cache = None
-        self.allows_inefficient = allows_inefficient  # TODO: Make this a config setting
+        self.allows_inefficient = (
+            allows_inefficient  # TODO: Make this a config setting
+        )
         self.ordering = []
         self.filters = []
         self.inefficient_ordering = []
@@ -104,12 +112,12 @@ class CassandraQuery(NonrelQuery):
 
         self.cql_query = self.column_family_class.objects.values_list(
             *self.column_names
-        ).allow_filtering().limit(1000000).timeout(None)
+        ).allow_filtering()
 
     @property
     def filterable_columns(self):
         return itertools.chain(
-            [self.pk_column],
+            ['pk__token', self.pk_column],
             self.clustering_columns,
             self.indexed_columns
         )
@@ -131,6 +139,11 @@ class CassandraQuery(NonrelQuery):
                 sorted_predicates.append(
                     predicates_by_column[column]
                 )
+
+        if 'pk__token' in predicates_by_column:
+            sorted_predicates.append(
+                predicates_by_column['pk__token']
+            )
 
         for predicate in range_predicates:
             if (predicate.column in self.indexed_columns):
@@ -174,15 +187,18 @@ class CassandraQuery(NonrelQuery):
                         end_op
                     ])
 
+                filter_ops = {}
                 if None is not start_op:
-                    return query.filter(**{
+                    filter_ops.update({
                         start_op: predicate.start
                     })
 
                 if None is not end_op:
-                    return query.filter(**{
+                    filter_ops.update({
                         end_op: predicate.end
                     })
+
+                return query.filter(**filter_ops)
 
         for predicate in sorted_predicates:
             self.cql_query = filter_range(
@@ -217,26 +233,29 @@ class CassandraQuery(NonrelQuery):
         return self.cql_query.all()
 
     def _get_query_results(self):
-        if self.cache == None:
-            assert(self.root_predicate != None)
+        if None is self.cache:
+            assert(None is not self.root_predicate)
             self.cache = self.root_predicate.get_matching_rows(self)
 
         return self.cache
 
     @safe_call
     def fetch(self, low_mark, high_mark):
-        if self.root_predicate == None:
-            raise DatabaseError('No root query node')
+        if None is self.root_predicate:
+            raise Exception('No root query node')
 
         if high_mark is not None and high_mark <= low_mark:
             return
+
+        if not low_mark and high_mark:
+            self.limit = high_mark
+
+        self.cql_query = self.cql_query.limit(self.limit)
 
         results = self._get_query_results()
 
         if low_mark is not None or high_mark is not None:
             results = results[low_mark:high_mark]
-
-
 
         for entity in results:
             yield entity
@@ -248,7 +267,6 @@ class CassandraQuery(NonrelQuery):
         return len(
             self.root_predicate.get_matching_rows(self)
         )
-
 
     def delete(
         self,
@@ -343,7 +361,10 @@ class CassandraQuery(NonrelQuery):
             predicate = CompoundPredicate(compound_op, node.negated)
 
             for child in node.children:
-                child_predicate = self.init_predicate(predicate, child)
+                child_predicate = self.init_predicate(
+                    predicate,
+                    child
+                )
 
             if parent_predicate:
                 parent_predicate.add_child(predicate)
@@ -364,9 +385,17 @@ class CassandraQuery(NonrelQuery):
         if isinstance(node, WhereNode):
             child_count = len(node.children)
             for i in range(child_count):
-                node.children[i] = self.remove_unnecessary_nodes(node.children[i], False)
-            if (not retain_root_node) and (not node.negated) and (len(node.children) == 1):
+                node.children[i] = self.remove_unnecessary_nodes(
+                    node.children[i],
+                    False
+                )
+            if (
+                (not retain_root_node) and
+                (not node.negated) and
+                (len(node.children) == 1)
+            ):
                 node = node.children[0]
+
         return node
 
     @safe_call
@@ -375,7 +404,7 @@ class CassandraQuery(NonrelQuery):
         Traverses the given Where tree and adds the filters to this query
         """
 
-        assert isinstance(filters,WhereNode)
+        assert isinstance(filters, WhereNode)
         self.remove_unnecessary_nodes(filters, True)
         self.root_predicate = self.init_predicate(None, filters)
 
