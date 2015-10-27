@@ -4,7 +4,7 @@ from django.db.backends.schema import (
     BaseDatabaseSchemaEditor
 )
 
-from djangocassandra.db.models import (
+from djangocassandra.db.meta import (
     CqlColumnFamilyMetaClass,
     get_column_family,
     internal_type_to_column_map

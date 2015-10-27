@@ -21,7 +21,7 @@ from djangotoolbox.db.basecompiler import (
 
 from cassandra.cqlengine.query import BatchQuery
 
-from djangocassandra.db.models import (
+from djangocassandra.db.meta import (
     get_column_family
 )
 from djangocassandra.db.fields import (
