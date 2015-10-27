@@ -2,10 +2,8 @@ from django.db.models import (
     Model
 )
 from django.db.models.manager import Manager
-from django.db.models.options import Options
 
 from cassandra.cqlengine import columns
-from cassandra.cqlengine.functions import Token
 from cassandra.cqlengine.models import (
     Model as CqlEngineModel,
     ModelMetaClass as CqlEngineModelMetaClass

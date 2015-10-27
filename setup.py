@@ -41,6 +41,7 @@ setup(
     install_requires=[
         'django>=1.7, < 1.8',
         'cassandra-driver==2.5.1',
-        'blist'
+        'blist',
+        'djangotoolbox==1.7.0'
     ],
 )
