@@ -23,7 +23,7 @@ from cassandra.cqlengine.management import (
     sync_table
 )
 
-from djangocassandra.db.models import get_column_family
+from djangocassandra.db.meta import get_column_family
 
 
 class DatabaseCreation(NonrelDatabaseCreation):

@@ -2,9 +2,7 @@ import datetime
 
 from unittest import TestCase
 
-from uuid import UUID
-
-from djangocassandra.db.models import get_column_family
+from djangocassandra.db.meta import get_column_family
 
 from .models import (
     SimpleTestModel,

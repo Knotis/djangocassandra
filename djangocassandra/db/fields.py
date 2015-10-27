@@ -43,6 +43,9 @@ class TokenPartitionKeyField(Field):
 
         setattr(cls, name, self)
 
+    def get_internal_type(self):
+        return 'Token'
+
     def __get__(
         self,
         instance,
