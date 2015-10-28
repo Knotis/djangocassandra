@@ -244,7 +244,11 @@ class CassandraQuery(NonrelQuery):
         if None is self.root_predicate:
             raise Exception('No root query node')
 
-        if high_mark is not None and high_mark <= low_mark:
+        if (
+            high_mark is not None and
+            low_mark is not None and
+            high_mark <= low_mark
+        ):
             return
 
         if not low_mark and high_mark:
@@ -439,6 +443,9 @@ class SQLInsertCompiler(
 
         with BatchQuery() as b:
             for row in values:
+                if 'pk__token' in row:
+                    del row['pk__token']
+
                 if meta.has_auto_field and meta.pk.column not in row.keys():
                     if meta.pk.get_internal_type() == 'AutoField':
                         '''
@@ -488,6 +495,9 @@ class SQLUpdateCompiler(
         fields = []
         for value in values:
             field = value[0]
+            if 'Token' == field.get_internal_type():
+                continue
+
             fields.append(field)
             value_dict[
                 field.db_column
