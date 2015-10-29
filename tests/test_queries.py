@@ -34,7 +34,7 @@ class DatabaseSimpleQueryTestCase(TestCase):
         ]
         field_values = ['foo', 'bar', 'raw', 'awk', 'lik', 'sik', 'dik', 'doc']
 
-        self.total_rows = 10
+        self.total_rows = 400
         for x in xrange(self.total_rows):
             test_data = {}
             i = 0
@@ -53,6 +53,18 @@ class DatabaseSimpleQueryTestCase(TestCase):
 
     def tearDown(self):
         destroy_db(self.connection)
+
+    def test_filter_on_unindexed_column(self):
+        field_3_filter = SimpleTestModel.objects.filter(field_3='raw')
+
+        expected_count = 0
+        for _, o in self.cached_rows.iteritems():
+            if o.field_3 == 'raw':
+                expected_count += 1
+
+        self.assertEqual(expected_count, len(field_3_filter))
+        for o in field_3_filter:
+            self.assertTrue(o.pk in self.cached_rows.keys())
 
     def test_query_all(self):
         all_rows = list(SimpleTestModel.objects.all())
