@@ -77,7 +77,8 @@ class CassandraQuery(NonrelQuery):
             self.columns.append(f)
 
         self.where = None
-        self.limit = 1000000  # TODO: Make this a config setting
+        self.default_limit = 1000000  # TODO: Make this a config setting
+        self.limit = self.default_limit
         self.timeout = None  # TODO: Make this a config setting
         self.cache = None
         self.allows_inefficient = (
@@ -230,7 +231,7 @@ class CassandraQuery(NonrelQuery):
         return self._get_rows_by_indexed_column(range_predicates)
 
     def get_all_rows(self):
-        return self.cql_query.all()
+        return self.cql_query.limit(self.default_limit).all()
 
     def _get_query_results(self):
         if None is self.cache:
