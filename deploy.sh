@@ -1,1 +1,0 @@
-python setup.py sdist && cp dist/djangocassandra-0.0.4.tar.gz ../knotis.com/web/dist/ && docker exec knotiscom_web_1 /srv/knotis/venv/bin/pip install --upgrade --no-deps /srv/knotis/web/dist/djangocassandra-0.0.4.tar.gz
