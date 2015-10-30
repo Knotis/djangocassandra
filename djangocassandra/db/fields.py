@@ -63,6 +63,17 @@ class TokenPartitionKeyField(Field):
     ):
         pass
 
+    def value_to_string(
+        self,
+        obj
+    ):
+        value = self._get_val_from_obj(obj)
+        return ''.join([
+            'token(',
+            ','.join(value.value),
+            ')'
+        ])
+
 
 class AutoFieldUUID(with_metaclass(SubfieldBase, AutoField)):
     description = _('UUID')
