@@ -43,6 +43,23 @@ class ColumnFamilyTestModel(ColumnFamilyModel):
     )
 
 
+class ColumnFamilyIndexedTestModel(ColumnFamilyModel):
+    field_1 = CharField(
+        primary_key=True,
+        max_length=32
+    )
+    field_2 = CharField(
+        max_length=32
+    )
+    field_3 = CharField(
+        max_length=32
+    )
+    field_4 = CharField(
+        max_length=32,
+        db_index=True
+    )
+
+    
 class SimpleTestModel(Model):
     field_1 = CharField(max_length=32)
     field_2 = CharField(max_length=32)

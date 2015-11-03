@@ -80,7 +80,7 @@ class RangePredicate(object):
 
     def _is_exact(self):
         return (
-            (self.start != None) and
+            (self.start is not None) and
             (self.start == self.end) and
             self.start_inclusive and
             self.end_inclusive
@@ -114,22 +114,22 @@ class RangePredicate(object):
         # (although perhaps at the expense of clarity?)
         if parent_compound_op == COMPOUND_OP_AND:
             if op == 'gt':
-                if self.start == None or value >= self.start:
+                if self.start is None or value >= self.start:
                     self.start = value
                     self.start_inclusive = False
                     return True
             elif op == 'gte':
-                if self.start == None or value > self.start:
+                if self.start is None or value > self.start:
                     self.start = value
                     self.start_inclusive = True
                     return True
             elif op == 'lt':
-                if self.end == None or value <= self.end:
+                if self.end is None or value <= self.end:
                     self.end = value
                     self.end_inclusive = False
                     return True
             elif op == 'lte':
-                if self.end == None or value < self.end:
+                if self.end is None or value < self.end:
                     self.end = value
                     self.end_inclusive = True
                     return True
@@ -139,11 +139,14 @@ class RangePredicate(object):
                     self.start_inclusive = self.end_inclusive = True
                     return True
             elif op == 'startswith':
-                # For the end value we increment the ordinal value of the last character
-                # in the start value and make the end value not inclusive
+                # For the end value we increment the ordinal value of the
+                # last character in the start value and make the end value
+                # not inclusive
                 end_value = value[:-1] + chr(ord(value[-1])+1)
-                if (((self.start == None) or (value > self.start)) and
-                    ((self.end == None) or (end_value <= self.end))):
+                if (
+                    ((self.start is None) or (value > self.start)) and
+                    ((self.end is None) or (end_value <= self.end))
+                ):
                     self.start = value
                     self.end = end_value
                     self.start_inclusive = True
@@ -153,22 +156,22 @@ class RangePredicate(object):
                 raise InvalidPredicateOpException()
         elif parent_compound_op == COMPOUND_OP_OR:
             if op == 'gt':
-                if self.start == None or value < self.start:
+                if self.start is None or value < self.start:
                     self.start = value
                     self.start_inclusive = False
                     return True
             elif op == 'gte':
-                if self.start == None or value <= self.start:
+                if self.start is None or value <= self.start:
                     self.start = value
                     self.start_inclusive = True
                     return True
             elif op == 'lt':
-                if self.end == None or value > self.end:
+                if self.end is None or value > self.end:
                     self.end = value
                     self.end_inclusive = False
                     return True
             elif op == 'lte':
-                if self.end == None or value >= self.end:
+                if self.end is None or value >= self.end:
                     self.end = value
                     self.end_inclusive = True
                     return True
@@ -176,11 +179,14 @@ class RangePredicate(object):
                 if self._matches_value(value):
                     return True
             elif op == 'startswith':
-                # For the end value we increment the ordinal value of the last character
-                # in the start value and make the end value not inclusive
+                # For the end value we increment the ordinal value of the
+                # last character in the start value and make the end value
+                # not inclusive
                 end_value = value[:-1] + chr(ord(value[-1])+1)
-                if (((self.start == None) or (value <= self.start)) and
-                    ((self.end == None) or (end_value > self.end))):
+                if (
+                    ((self.start is None) or (value <= self.start)) and
+                    ((self.end is None) or (end_value > self.end))
+                ):
                     self.start = value
                     self.end = end_value
                     self.start_inclusive = True
@@ -188,26 +194,27 @@ class RangePredicate(object):
                     return True
         else:
             raise InvalidPredicateOpException()
-    
+
         return False
-    
+
     def _matches_value(self, value):
-        if value == None:
+        if value is None:
             return False
-        if self.start != None:
+        if self.start is not None:
             if self.start_inclusive:
                 if value < self.start:
                     return False
             elif value <= self.start:
                 return False
-        if self.end != None:
+
+        if self.end is not None:
             if self.end_inclusive:
                 if value > self.end:
                     return False
             elif value >= self.end:
                 return False
         return True
-    
+
     def row_matches(self, row):
         value = row.get(self.column, None)
         return self._matches_value(value)
@@ -240,9 +247,9 @@ class OperationPredicate(object):
     def row_matches(self, row):
         row_value = row.get(self.column, None)
         if self.op == 'isnull':
-            return row_value == None
+            return row_value is None
         # FIXME: Not sure if the following test is correct in all cases
-        if (row_value == None) or (self.value == None):
+        if (row_value is None) or (self.value is None):
             return False
         if self.op == 'in':
             return row_value in self.value
@@ -259,26 +266,30 @@ class OperationPredicate(object):
         elif self.op == 'icontains':
             return row_value.lower().find(self.value.lower()) >= 0
         elif self.op == 'regex' or self.op == 'iregex':
-            return self.pattern.match(row_value) != None
+            return self.pattern.match(row_value) is not None
         else:
             raise InvalidPredicateOpException()
-    
+
     def incorporate_range_op(self, column, op, value, parent_compound_op):
         return False
-    
+
     def get_matching_rows(self, query):
         # get_matching_rows should only be called for predicates that can
-        # be evaluated efficiently, which is not the case for OperationPredicate's
-        raise NotImplementedError('get_matching_rows() called for inefficient predicate')
-    
+        # be evaluated efficiently, which is not the case for
+        # OperationPredicate's
+        raise NotImplementedError(
+            'get_matching_rows() called for inefficient predicate'
+        )
+
+
 class CompoundPredicate(object):
     def __init__(self, op, negated=False, children=None):
         self.op = op
         self.negated = negated
         self.children = children
-        if self.children == None:
+        if self.children is None:
             self.children = []
-    
+
     def __repr__(self):
         s = '('
         if self.negated:
@@ -295,7 +306,7 @@ class CompoundPredicate(object):
                 s += unicode(child_predicate)
         s += ')'
         return s
-    
+
     def can_evaluate_efficiently(
         self,
         pk_column,
@@ -304,16 +315,18 @@ class CompoundPredicate(object):
     ):
         if self.negated:
             return False
+
         if self.op == COMPOUND_OP_AND:
             for child in self.children:
-                if child.can_evaluate_efficiently(
+                if not child.can_evaluate_efficiently(
                     pk_column,
                     clustering_columns,
                     indexed_columns
                 ):
-                    return True
-                else:
                     return False
+
+            return True
+
         elif self.op == COMPOUND_OP_OR:
             for child in self.children:
                 if not child.can_evaluate_efficiently(
@@ -322,8 +335,9 @@ class CompoundPredicate(object):
                         indexed_columns
                 ):
                     return False
-                else:
-                    return True
+
+            return True
+
         else:
             raise InvalidPredicateOpException()
 
@@ -339,23 +353,23 @@ class CompoundPredicate(object):
             matches = False
             for predicate in subset:
                 if predicate.row_matches(row):
-                    matches =  True
+                    matches = True
                     break
 
         else:
             raise InvalidPredicateOpException()
-        
+
         if self.negated:
             matches = not matches
-            
+
         return matches
-        
+
     def row_matches(self, row):
         return self.row_matches_subset(row, self.children)
-    
+
     def incorporate_range_op(self, column, op, value, parent_predicate):
         return False
-    
+
     def add_filter(self, column, op, value):
         column_name = (
             column.db_column
@@ -399,48 +413,39 @@ class CompoundPredicate(object):
         else:
             child = OperationPredicate(column_name, op, value)
             self.children.append(child)
-    
+
     def add_child(self, child_query_node):
         self.children.append(child_query_node)
-    
+
     def get_matching_rows(self, query):
         pk_column = query.query.get_meta().pk.column
-        
+
         # In the first pass we handle the query nodes that can be processed
         # efficiently. Hopefully, in most cases, this will result in a
         # subset of the rows that is much smaller than the overall number
         # of rows so we only have to run the inefficient query predicates
         # over this smaller number of rows.
-        if self.can_evaluate_efficiently(
-            pk_column,
-            query.clustering_columns,
-            query.indexed_columns
-        ):
-            range_predicates = []
-            inefficient_predicates = []
-            result = None
-            for predicate in self.children:
-                if predicate.can_evaluate_efficiently(
-                    pk_column,
-                    query.clustering_columns,
-                    query.filterable_columns
-                ):
-                    range_predicates.append(predicate)
+        range_predicates = []
+        inefficient_predicates = []
+        result = None
+        for predicate in self.children:
+            if predicate.can_evaluate_efficiently(
+                pk_column,
+                query.clustering_columns,
+                query.filterable_columns
+            ):
+                range_predicates.append(predicate)
 
-                else:
-                    inefficient_predicates.append(predicate)
+            else:
+                inefficient_predicates.append(predicate)
 
-            cql_query = query.get_row_range(range_predicates)
+        cql_query = query.get_row_range(range_predicates)
 
-            if query.ordering:
-                for order in query.ordering:
-                    cql_query = cql_query.order_by(order)
+        if query.ordering:
+            for order in query.ordering:
+                cql_query = cql_query.order_by(order)
 
-            result = cql_query
-
-        else:
-            inefficient_predicates = self.children
-            result = query.get_all_rows()
+        result = cql_query
 
         if None is result:
             result = []
@@ -471,5 +476,8 @@ class CompoundPredicate(object):
         if query.inefficient_ordering:
             for order in query.inefficient_ordering:
                 sort_rows(result, order)
+
+        if query.low_mark is not None or query.high_mark is not None:
+            result = result[query.low_mark:query.high_mark]
 
         return result
