@@ -88,6 +88,9 @@ class CassandraQuery(NonrelQuery):
         self.filters = []
         self.inefficient_ordering = []
 
+        self.high_mark = None
+        self.low_mark = None
+
         self.connection.ensure_connection()
         self.column_family_class = get_column_family(
             self.connection,
@@ -245,22 +248,29 @@ class CassandraQuery(NonrelQuery):
         if None is self.root_predicate:
             raise Exception('No root query node')
 
+        self.low_mark = low_mark
+        self.high_mark = high_mark
+
         if (
             high_mark is not None and
             low_mark is not None and
             high_mark <= low_mark
         ):
-            return
+            raise Exception('Can\'t slice query high_mark > low_mark')
 
-        if not low_mark and high_mark:
+        if (
+            not low_mark and high_mark and
+            self.root_predicate.can_evaluate_efficiently(
+                self.pk_column,
+                self.clustering_columns,
+                self.indexed_columns
+            )
+        ):
             self.limit = high_mark
 
         self.cql_query = self.cql_query.limit(self.limit)
 
         results = self._get_query_results()
-
-        if low_mark is not None or high_mark is not None:
-            results = results[low_mark:high_mark]
 
         for entity in results:
             yield entity

@@ -32,6 +32,7 @@ class DatabaseSimpleQueryTestCase(TestCase):
             field.name if field.get_internal_type() != 'AutoField' else None
             for field in SimpleTestModel._meta.fields
         ]
+        unique_value = 'bazinga'
         field_values = ['foo', 'bar', 'raw', 'awk', 'lik', 'sik', 'dik', 'doc']
 
         self.total_rows = 400
@@ -44,6 +45,10 @@ class DatabaseSimpleQueryTestCase(TestCase):
 
                 test_data[name] = field_values[i]
                 i += 1
+
+            if unique_value:
+                test_data['field_3'] = unique_value
+                unique_value = None
 
             created_instance = SimpleTestModel.objects.create(**test_data)
             self.cached_rows[created_instance.pk] = created_instance
@@ -65,6 +70,22 @@ class DatabaseSimpleQueryTestCase(TestCase):
         self.assertEqual(expected_count, len(field_3_filter))
         for o in field_3_filter:
             self.assertTrue(o.pk in self.cached_rows.keys())
+
+    def test_partial_inefficient_get(self):
+        field_3_get = SimpleTestModel.objects.get(field_3='bazinga')
+        partial_inefficient_get = SimpleTestModel.objects.get(
+            pk=field_3_get.pk,
+            field_3='bazinga'
+        )
+
+        self.assertIsNotNone(partial_inefficient_get)
+        self.assertTrue(partial_inefficient_get.pk in self.cached_rows.keys())
+
+    def test_get_on_unindexed_column(self):
+        field_3_get = SimpleTestModel.objects.get(field_3='bazinga')
+
+        self.assertIsNotNone(field_3_get)
+        self.assertTrue(field_3_get.pk in self.cached_rows.keys())
 
     def test_query_all(self):
         all_rows = list(SimpleTestModel.objects.all())
