@@ -4,6 +4,7 @@ from unittest import TestCase
 
 from .models import (
     SimpleTestModel,
+    PartitionPrimaryKeyModel,
     ClusterPrimaryKeyModel,
     ColumnFamilyTestModel
 )
@@ -148,6 +149,9 @@ class DatabaseClusteringKeyTestCase(TestCase):
         import django
         django.setup()
 
+    def tearDown(self):
+        destroy_db(self.connection)
+
     def inefficient_filter(self):
         manager = ClusterPrimaryKeyModel.objects
         all_rows = list(manager.all())
@@ -285,6 +289,63 @@ class DatabaseClusteringKeyTestCase(TestCase):
                 filtered_rows[i].data,
                 filtered_rows_ordered_desc[i].data
             )
+
+
+class DatabasePartitionKeyTestCase(TestCase):
+    def setUp(self):
+        self.connection = connect_db()
+
+        self.cached_rows = {}
+
+        '''
+        Now let's create some data that is clustered
+        '''
+        create_model(
+            self.connection,
+            PartitionPrimaryKeyModel
+        )
+
+        manager = PartitionPrimaryKeyModel.objects
+        manager.create(
+            field_1='aaaa',
+            field_2='aaaa',
+            field_3='bbbb',
+            field_4='cccc',
+            data='Foo'
+        )
+
+        manager.create(
+            field_1='aaaa',
+            field_2='bbbb',
+            field_3='cccc',
+            field_4='dddd',
+            data='Tao'
+        )
+
+        manager.create(
+            field_1='bbbb',
+            field_2='aaaa',
+            field_3='aaaa',
+            field_4='eeee',
+            data='Bar'
+        )
+
+        manager.create(
+            field_1='bbbb',
+            field_2='bbbb',
+            field_3='aaaa',
+            field_4='ffff',
+            data='Lel'
+        )
+
+        import django
+        django.setup()
+
+    def tearDown(self):
+        destroy_db(self.connection)
+
+    def test_nothing(self):
+        pass
 
 
 class ColumnFamilyModelPagingQueryTestCase(TestCase):

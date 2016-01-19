@@ -55,8 +55,8 @@ class CassandraQuery(NonrelQuery):
 
         self.meta = self.query.get_meta()
 
-        if hasattr(self.query.model, 'CassandraMeta'):
-            self.cassandra_meta = self.query.model.CassandraMeta
+        if hasattr(self.query.model, 'Cassandra'):
+            self.cassandra_meta = self.query.model.Cassandra
 
         else:
             self.cassandra_meta = None
@@ -108,11 +108,19 @@ class CassandraQuery(NonrelQuery):
 
         if hasattr(self.cassandra_meta, 'clustering_keys'):
             self.clustering_columns = (
-                self.query.model.CassandraMeta.clustering_keys
+                self.cassandra_meta.clustering_keys
             )
 
         else:
             self.clustering_columns = []
+
+        if hasattr(self.cassandra_meta, 'partition_keys'):
+            self.partiton_columns = (
+                self.cassandra_meta.partition_keys
+            )
+
+        else:
+            self.partition_columns = [self.pk_column]
 
         self.cql_query = self.column_family_class.objects.values_list(
             *self.column_names
@@ -121,7 +129,8 @@ class CassandraQuery(NonrelQuery):
     @property
     def filterable_columns(self):
         return itertools.chain(
-            ['pk__token', self.pk_column],
+            ['pk__token'],
+            self.partition_columns,
             self.clustering_columns,
             self.indexed_columns
         )
@@ -133,10 +142,12 @@ class CassandraQuery(NonrelQuery):
         predicates_by_column = {
             predicate.column: predicate for predicate in range_predicates
         }
-        if self.pk_column in predicates_by_column:
-            sorted_predicates.append(
-                predicates_by_column[self.pk_column]
-            )
+
+        for column_name in self.partition_columns:
+            if column_name in predicates_by_column:
+                sorted_predicates.append(
+                    predicates_by_column[column_name]
+                )
 
         for column in self.clustering_columns:
             if column in predicates_by_column:
@@ -227,7 +238,6 @@ class CassandraQuery(NonrelQuery):
 
         for predicate in range_predicates:
             assert(
-                predicate.column == self.pk_column or
                 predicate.column in self.filterable_columns
             )
 
@@ -261,7 +271,7 @@ class CassandraQuery(NonrelQuery):
         if (
             not low_mark and high_mark and
             self.root_predicate.can_evaluate_efficiently(
-                self.pk_column,
+                self.partition_columns,
                 self.clustering_columns,
                 self.indexed_columns
             )
@@ -288,7 +298,7 @@ class CassandraQuery(NonrelQuery):
         columns=set()
     ):
         if self.root_predicate.can_evaluate_efficiently(
-            self.pk_column,
+            self.partition_columns,
             self.clustering_columns,
             self.indexed_columns
         ):
@@ -300,7 +310,7 @@ class CassandraQuery(NonrelQuery):
             rows = self.root_predicate.get_matching_rows(self)
             for row in rows:
                 self.column_family_class.get(**{
-                    self.pk_column: row[self.pk_column]
+                    field: row[field] for field in self.partition_columns
                 }).delete()
 
     def order_by(
@@ -335,13 +345,11 @@ class CassandraQuery(NonrelQuery):
                 field_name
             ])
 
-            partition_key_filtered = (
-                self.pk_column in [
-                    f[0].db_column if f[0].db_column
-                    else f[0].column for
-                    f in self.filters
-                ]
-            )
+            partition_key_filtered = True
+            for partition_key in self.partition_columns:
+                if partition_key not in self.filters:
+                    partition_key_filtered = False
+                    break
 
             if (
                 partition_key_filtered

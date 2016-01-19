@@ -2,6 +2,7 @@ from django.db import (
     NotSupportedError
 )
 
+
 class InefficientQueryError(NotSupportedError):
     message = (
         'Innefficent queries are not allowed on this model. '
@@ -13,7 +14,7 @@ class InefficientQueryError(NotSupportedError):
         'inefficient filtering and ordering in your database '
         'by setting the ALLOW_INEFFICIENT_QUERIES=True in '
         'your settings.py or you can set this per model in '
-        'the CassandraMeta class for you model '
+        'the Cassandra meta class for you model '
         '"allow_inefficient_queries=True".'
     )
 
