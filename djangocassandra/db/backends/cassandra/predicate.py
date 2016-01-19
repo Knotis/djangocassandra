@@ -88,22 +88,22 @@ class RangePredicate(object):
 
     def can_evaluate_efficiently(
         self,
-        pk_column,
+        partition_columns,
         clustering_columns,
         indexed_columns
     ):
         if self._is_exact():
-            return (
-                self.column == pk_column or
-                self.column == 'pk__token' or
-                self.column in indexed_columns or
-                self.column in clustering_columns
+            return self.column in itertools.chain(
+                ['pk__token'],
+                partition_columns,
+                clustering_columns,
+                indexed_columns
             )
 
         else:
             return self.column in itertools.chain(
-                clustering_columns,
-                ['pk__token']
+                ['pk__token'],
+                clustering_columns
             )
 
     def incorporate_range_op(self, column, op, value, parent_compound_op):

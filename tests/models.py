@@ -145,7 +145,7 @@ class RelatedModelC(Model):
 
 
 class ClusterPrimaryKeyModel(Model):
-    class CassandraMeta:
+    class Cassandra:
         clustering_keys = ['field_2', 'field_3']
 
     field_1 = CharField(
@@ -154,4 +154,19 @@ class ClusterPrimaryKeyModel(Model):
     )
     field_2 = CharField(max_length=32)
     field_3 = CharField(max_length=32)
+    data = CharField(max_length=64)
+
+
+class PartitionPrimaryKeyModel(Model):
+    class Cassandra:
+        partition_keys = ['field_1', 'field_2']
+        clustering_keys = ['field_3', 'field_4']
+
+    field_1 = CharField(
+        primary_key=True,
+        max_length=32
+    )
+    field_2 = CharField(max_length=32)
+    field_3 = CharField(max_length=32)
+    field_4 = CharField(max_length=32)
     data = CharField(max_length=64)

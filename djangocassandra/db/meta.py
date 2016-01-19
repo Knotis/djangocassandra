@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 from cassandra.cqlengine import columns
 from cassandra.cqlengine.models import (
     Model as CqlEngineModel,
@@ -80,38 +82,72 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
         bases,
         attrs
     ):
+        ordered_attrs = OrderedDict(attrs)
+
         if name in CqlColumnFamilyMetaClass.__column_families__:
             return CqlColumnFamilyMetaClass.__column_families__[name]
 
         model = attrs.get('__model__')
-        if hasattr(model, 'CassandraMeta'):
-            cassandra_options = model.CassandraMeta
+        if hasattr(model, 'Cassandra'):
+            cassandra_options = model.Cassandra
 
         else:
             cassandra_options = None
 
         if None is not model:
             '''
-            Create primary/clustering keys first.
+            Create partition/clustering keys first.
             '''
-            primary_key_field = model._meta.pk
-            primary_field_name = (
-                primary_key_field.db_column
-                if primary_key_field.db_column
-                else primary_key_field.column
-            )
+            partition_keys = []
+            if (
+                cassandra_options and
+                hasattr(cassandra_options, 'partition_keys')
+            ):
+                partition_keys = cassandra_options.partition_keys
 
-            column_type = get_cql_column_type(primary_key_field)
+            primary_field_name = None
 
-            column = column_type(
-                primary_key=True,
-                db_field=primary_field_name
-            )
-            attrs[
-                primary_key_field.db_column if
-                primary_key_field.db_column else
-                primary_key_field.column
-            ] = column
+            if partition_keys:
+                for column_name in partition_keys:
+                    field = model._meta.get_field(column_name)
+                    field_name = (
+                        field.db_column if
+                        field.db_column else
+                        field.column
+                    )
+
+                    column_type = get_cql_column_type(field)
+                    column = column_type(
+                        primary_key=True,
+                        partition_key=True,
+                        db_field=field_name
+                    )
+                    ordered_attrs[
+                        field.db_column if
+                        field.db_column else
+                        field.column
+                    ] = column
+
+            else:
+                primary_key_field = model._meta.pk
+                primary_field_name = (
+                    primary_key_field.db_column
+                    if primary_key_field.db_column
+                    else primary_key_field.column
+                )
+
+                column_type = get_cql_column_type(primary_key_field)
+
+                column = column_type(
+                    primary_key=True,
+                    partition_key=True,
+                    db_field=primary_field_name
+                )
+                ordered_attrs[
+                    primary_key_field.db_column if
+                    primary_key_field.db_column else
+                    primary_key_field.column
+                ] = column
 
             clustering_keys = []
             if (
@@ -120,7 +156,7 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
             ):
                 clustering_keys = cassandra_options.clustering_keys
 
-                for column_name in cassandra_options.clustering_keys:
+                for column_name in clustering_keys:
                     field = model._meta.get_field(column_name)
                     field_name = (
                         field.db_column if
@@ -128,9 +164,11 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
                         field.column
                     )
 
-                    if field_name == primary_field_name:
-                        # Skip primary key if it was included in the clustering
-                        # keys.
+                    if (
+                        field_name in partition_keys or
+                        field_name == primary_field_name
+                    ):
+                        # Skip primary key or partition keys if included here.
                         continue
 
                     column_type = get_cql_column_type(field)
@@ -138,7 +176,7 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
                         primary_key=True,
                         db_field=field_name
                     )
-                    attrs[
+                    ordered_attrs[
                         field.db_column if
                         field.db_column else
                         field.column
@@ -153,7 +191,11 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
                     field.db_column else
                     field.column
                 )
-                if field.primary_key or field_name in clustering_keys:
+                if (
+                    field.primary_key or
+                    field_name in partition_keys or
+                    field_name in clustering_keys
+                ):
                     continue
 
                 column_type = get_cql_column_type(field)
@@ -182,13 +224,13 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
                     *args
                 )
 
-                attrs[field_name] = column
+                ordered_attrs[field_name] = column
 
         column_family = super(CqlColumnFamilyMetaClass, meta).__new__(
             meta,
             name,
             bases,
-            attrs
+            ordered_attrs
         )
 
         CqlColumnFamilyMetaClass.__column_families__[name] = column_family
@@ -227,6 +269,7 @@ Table Options:
 'compression': None,
 'default_time_to_live': None
 '''
+
 default_table_options = {
 }
 
