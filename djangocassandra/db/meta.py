@@ -88,8 +88,19 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
             return CqlColumnFamilyMetaClass.__column_families__[name]
 
         model = attrs.get('__model__')
-        if hasattr(model, 'Cassandra'):
-            cassandra_options = model.Cassandra
+        registered_model = model
+        try:
+            from django.apps import apps
+            registered_model = apps.get_model(
+                model._meta.app_label,
+                model._meta.model_name
+            )
+
+        except:
+            pass
+
+        if hasattr(registered_model, 'Cassandra'):
+            cassandra_options = registered_model.Cassandra.__dict__
 
         else:
             cassandra_options = None
@@ -285,14 +296,25 @@ def get_column_family(
 ):
     connection_settings = connection.settings_dict
 
-    if hasattr(model, 'Cassandra'):
-        cassandra_settings = model.Cassandra.__dict__
+    registered_model = model
+    try:
+        from django.apps import apps
+        registered_model = apps.get_model(
+            model._meta.app_label,
+            model._meta.model_name
+        )
+
+    except:
+        pass
+
+    if hasattr(registered_model, 'Cassandra'):
+        cassandra_options = registered_model.Cassandra.__dict__
 
     else:
-        cassandra_settings = default_cassandra_model_settings
+        cassandra_options = default_cassandra_model_settings
 
-    if hasattr(cassandra_settings, 'keyspace'):
-        keyspace = cassandra_settings.keyspace
+    if hasattr(cassandra_options, 'keyspace'):
+        keyspace = cassandra_options.keyspace
 
     else:
         keyspace = connection_settings.get('DEFAULT_KEYSPACE')
@@ -303,14 +325,14 @@ def get_column_family(
 
     table_options = default_table_options
 
-    if hasattr(cassandra_settings, 'table_options'):
-        if not isinstance(cassandra_settings.table_optoins, dict):
+    if hasattr(cassandra_options, 'table_options'):
+        if not isinstance(cassandra_options.table_options, dict):
             raise DatabaseError(
                 'The value of table_options in the Cassandra class '
                 'must be a dict containing overrides for the default'
                 'column family options.'
             )
-        table_options.update(cassandra_settings.table_metadata)
+        table_options.update(cassandra_options.table_options)
 
     return type(
         str(model._meta.db_table),

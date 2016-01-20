@@ -4,6 +4,7 @@ from unittest import TestCase
 
 from .models import (
     SimpleTestModel,
+    DerivedPartitionPrimaryKeyModel,
     PartitionPrimaryKeyModel,
     ClusterPrimaryKeyModel,
     ColumnFamilyTestModel
@@ -335,6 +336,63 @@ class DatabasePartitionKeyTestCase(TestCase):
             field_2='bbbb',
             field_3='aaaa',
             field_4='ffff',
+            data='Lel'
+        )
+
+        import django
+        django.setup()
+
+    def tearDown(self):
+        destroy_db(self.connection)
+
+    def test_nothing(self):
+        pass
+
+
+class DerivedPartitionKeyModelTestCase(TestCase):
+    def setUp(self):
+        self.connection = connect_db()
+
+        self.cached_rows = {}
+
+        '''
+        Now let's create some data that is clustered
+        '''
+        create_model(
+            self.connection,
+            DerivedPartitionPrimaryKeyModel
+        )
+
+        manager = DerivedPartitionPrimaryKeyModel.objects
+        manager.create(
+            field_1='aaaa',
+            field_2='aaaa',
+            inherited_1='bbbb',
+            inherited_2='cccc',
+            data='Foo'
+        )
+
+        manager.create(
+            field_1='aaaa',
+            field_2='bbbb',
+            inherited_1='cccc',
+            inherited_2='dddd',
+            data='Tao'
+        )
+
+        manager.create(
+            field_1='bbbb',
+            field_2='aaaa',
+            inherited_1='aaaa',
+            inherited_2='eeee',
+            data='Bar'
+        )
+
+        manager.create(
+            field_1='bbbb',
+            field_2='bbbb',
+            inherited_1='aaaa',
+            inherited_2='ffff',
             data='Lel'
         )
 
