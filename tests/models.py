@@ -170,3 +170,33 @@ class PartitionPrimaryKeyModel(Model):
     field_3 = CharField(max_length=32)
     field_4 = CharField(max_length=32)
     data = CharField(max_length=64)
+
+
+class AbstractTestModel(Model):
+    class Meta:
+        abstract = True
+
+    inherited_1 = CharField(
+        max_length=32,
+        db_index=True
+    )
+    inherited_2 = CharField(max_length=32)
+    pub_date = DateTimeField('date published', auto_now_add=True)
+
+
+class DerivedPartitionPrimaryKeyModel(AbstractTestModel):
+    class Cassandra:
+        partition_keys = ['field_1', 'field_2']
+        clustering_keys = ['inherited_1', 'pub_date']
+
+    field_1 = CharField(
+        primary_key=True,
+        max_length=32
+    )
+    field_2 = CharField(
+        max_length=32,
+        db_index=True
+    )
+    data = CharField(
+        max_length=128
+    )
