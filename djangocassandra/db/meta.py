@@ -100,7 +100,7 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
             pass
 
         if hasattr(registered_model, 'Cassandra'):
-            cassandra_options = registered_model.Cassandra.__dict__
+            cassandra_options = registered_model.Cassandra
 
         else:
             cassandra_options = None
@@ -176,7 +176,7 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
                     )
 
                     if (
-                        field_name in partition_keys or
+                        column_name in partition_keys or
                         field_name == primary_field_name
                     ):
                         # Skip primary key or partition keys if included here.
@@ -204,8 +204,8 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
                 )
                 if (
                     field.primary_key or
-                    field_name in partition_keys or
-                    field_name in clustering_keys
+                    field.name in partition_keys or
+                    field.name in clustering_keys
                 ):
                     continue
 
@@ -308,7 +308,7 @@ def get_column_family(
         pass
 
     if hasattr(registered_model, 'Cassandra'):
-        cassandra_options = registered_model.Cassandra.__dict__
+        cassandra_options = registered_model.Cassandra
 
     else:
         cassandra_options = default_cassandra_model_settings
