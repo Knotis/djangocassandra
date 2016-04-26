@@ -6,7 +6,10 @@ from .util import (
     create_model
 )
 
-from .models import SimpleTestModel
+from .models import (
+    SimpleTestModel,
+    CustomNameTestModel
+)
 
 
 class DatabaseCreationTestCase(TestCase):
@@ -20,4 +23,10 @@ class DatabaseCreationTestCase(TestCase):
         create_model(
             self.connection,
             SimpleTestModel
+        )
+
+    def test_table_name(self):
+        create_model(
+            self.connection,
+            CustomNameTestModel
         )

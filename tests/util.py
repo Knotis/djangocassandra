@@ -1,3 +1,9 @@
+import sys
+import random
+random.seed()
+
+import string
+
 from django.conf import settings
 
 from cassandra.cqlengine.management import delete_keyspace
@@ -31,3 +37,17 @@ def destroy_db(connection):
         ]
         for keyspace in keyspace_names:
             delete_keyspace(keyspace)
+
+
+def random_float(minimum=sys.float_info.min, maximum=sys.float_info.max):
+    return random.uniform(minimum, maximum)
+
+
+def random_integer(minimum=0, maximum=sys.maxint):
+    return random.randint(minimum, maximum)
+
+
+def random_string(length=8):
+    return ''.join(
+        random.choice(string.ascii_letters) for x in xrange(length)
+    )

@@ -29,6 +29,8 @@ from django.db.models import (
 from djangocassandra.db.fields import AutoFieldUUID
 from djangocassandra.db.models import ColumnFamilyModel
 
+from util import random_string
+
 
 class ColumnFamilyTestModel(ColumnFamilyModel):
     field_1 = CharField(
@@ -59,11 +61,16 @@ class ColumnFamilyIndexedTestModel(ColumnFamilyModel):
         db_index=True
     )
 
-    
+
 class SimpleTestModel(Model):
     field_1 = CharField(max_length=32)
     field_2 = CharField(max_length=32)
     field_3 = CharField(max_length=32)
+
+
+class CustomNameTestModel(SimpleTestModel):
+    class Meta:
+        db_table = 'custom_model_testtesttest'
 
 
 class DateTimeTestModel(Model):
@@ -144,7 +151,7 @@ class RelatedModelC(Model):
     )
 
 
-class ClusterPrimaryKeyModel(Model):
+class ClusterPrimaryKeyModel(ColumnFamilyModel):
     class Cassandra:
         clustering_keys = ['field_2', 'field_3']
 
@@ -156,8 +163,14 @@ class ClusterPrimaryKeyModel(Model):
     field_3 = CharField(max_length=32)
     data = CharField(max_length=64)
 
+    def auto_populate(self):
+        self.field_1 = random_string(32)
+        self.field_2 = random_string(32)
+        self.field_3 = random_string(32)
+        self.data = random_string(64)
 
-class PartitionPrimaryKeyModel(Model):
+
+class PartitionPrimaryKeyModel(ColumnFamilyModel):
     class Cassandra:
         partition_keys = ['field_1', 'field_2']
         clustering_keys = ['field_3', 'field_4']
@@ -170,6 +183,13 @@ class PartitionPrimaryKeyModel(Model):
     field_3 = CharField(max_length=32)
     field_4 = CharField(max_length=32)
     data = CharField(max_length=64)
+
+    def auto_populate(self):
+        self.field_1 = random_string(32)
+        self.field_2 = random_string(32)
+        self.field_3 = random_string(32)
+        self.field_4 = random_string(32)
+        self.data = random_string(64)
 
 
 class AbstractTestModel(Model):

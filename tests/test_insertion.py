@@ -7,7 +7,9 @@ from djangocassandra.db.meta import get_column_family
 from .models import (
     SimpleTestModel,
     DateTimeTestModel,
-    ComplicatedTestModel
+    ComplicatedTestModel,
+    PartitionPrimaryKeyModel,
+    ClusterPrimaryKeyModel
 )
 
 from .util import (
@@ -34,6 +36,16 @@ class DatabaseInsertionTestCase(TestCase):
         create_model(
             self.connection,
             ComplicatedTestModel
+        )
+
+        create_model(
+            self.connection,
+            PartitionPrimaryKeyModel
+        )
+
+        create_model(
+            self.connection,
+            ClusterPrimaryKeyModel
         )
 
     def tearDown(self):
@@ -74,6 +86,20 @@ class DatabaseInsertionTestCase(TestCase):
 
     def test_complicated_insertion(self):
         instance = ComplicatedTestModel()
+        instance.auto_populate()
+        instance.save()
+        self.assertIsNotNone(instance)
+        self.assertIsNotNone(instance.pk)
+
+    def test_partition_key_test_model(self):
+        instance = PartitionPrimaryKeyModel()
+        instance.auto_populate()
+        instance.save()
+        self.assertIsNotNone(instance)
+        self.assertIsNotNone(instance.pk)
+
+    def test_clustering_key_test_model(self):
+        instance = ClusterPrimaryKeyModel()
         instance.auto_populate()
         instance.save()
         self.assertIsNotNone(instance)

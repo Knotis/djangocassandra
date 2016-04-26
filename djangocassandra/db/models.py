@@ -27,4 +27,17 @@ class ColumnFamilyModel(DjangoModel):
             **kwargs
         )
 
+    def save(
+            self,
+            *args,
+            **kwargs
+    ):
+        kwargs['force_insert'] = True
+        kwargs['force_update'] = False
+
+        return super(ColumnFamilyModel, self).save(
+            *args,
+            **kwargs
+        )
+
     objects = ColumnFamilyManager()
