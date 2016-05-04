@@ -82,6 +82,19 @@ class AutoFieldUUID(with_metaclass(SubfieldBase, AutoField)):
         'invalid': _("'%(value)s' value must be a valid UUID."),
     }
 
+    def __init__(
+        self,
+        *args,
+        **kwargs
+    ):
+        if 'default' not in kwargs:
+            kwargs['default'] = uuid.uuid4
+
+        super(AutoFieldUUID, self).__init__(
+            *args,
+            **kwargs
+        )
+
     def to_python(
         self,
         value
@@ -105,6 +118,7 @@ class AutoFieldUUID(with_metaclass(SubfieldBase, AutoField)):
     def get_internal_type(self):
         return 'AutoFieldUUID'
 
+    @staticmethod
     def get_auto_value(self):
         return uuid.uuid4()
 
