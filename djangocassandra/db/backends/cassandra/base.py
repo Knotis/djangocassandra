@@ -148,6 +148,15 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
     def _cursor(self):
         return self.create_cursor()
 
+    def ensure_connection(self):
+        super(DatabaseWrapper, self).ensure_connection()
+
+    def connect(self):
+        super(DatabaseWrapper, self).connect()
+
+    def close(self):
+        super(DatabaseWrapper, self).close()
+
     def get_connection_params(self):
         '''
         Gets cluster settings from Django settings module using keys/values
@@ -225,7 +234,6 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         cql_version = settings.get(
             'CQL_VERSION'
         )
-
         executor_threads = settings.get(
             'EXECUTOR_THREADS',
             2
@@ -267,7 +275,6 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         }
 
     def get_new_connection(self, connection_settings):
-
         contact_points = connection_settings.pop(
             'contact_points',
             self.default_settings['CONTACT_POINTS']
@@ -281,6 +288,7 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         self.session = connection.get_session()
         if not(self.session is None or self.session.is_shutdown):
             return CassandraCursor(self.session)
+
         connection.setup(
             contact_points,
             keyspace,
@@ -289,6 +297,7 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
 
         self.cluster = connection.get_cluster()
         self.session = connection.get_session()
+        self.session.default_timeout = None  # Should be in config.
 
         return CassandraCursor(self.session)
 

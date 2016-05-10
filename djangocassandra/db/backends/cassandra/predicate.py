@@ -16,7 +16,13 @@ import re
 import itertools
 import warnings
 
-from collections import OrderedDict
+from cassandra.cqlengine.functions import Token
+
+from cassandra import ConsistencyLevel
+from cassandra.query import (
+    SimpleStatement,
+    ordered_dict_factory
+)
 
 from .exceptions import InefficientQueryError
 
@@ -445,16 +451,58 @@ class CompoundPredicate(object):
             for order in query.ordering:
                 cql_query = cql_query.order_by(order)
 
-        result = cql_query
+        result = None
 
-        if None is result:
-            result = []
+        def paged_query_generator(
+            cql_query,
+            django_query
+        ):
+            statement = SimpleStatement(
+                str(cql_query._select_query()),
+                consistency_level=ConsistencyLevel.ONE
+            )
 
-        else:
-            result = [OrderedDict(zip(
-                query.column_names,
-                row
-            )) for row in result]
+            if (
+                hasattr(
+                    django_query,
+                    'cassandra_meta'
+                ) and None is not django_query.cassandra_meta and
+                hasattr(
+                    django_query.cassandra_meta,
+                    'fetch_size'
+                )
+            ):
+                statement.fetch_size = django_query.cassandra_meta.fetch_size
+
+            parameters = {}
+            for where in cql_query._where:
+                if isinstance(where.value, Token):
+                    value = ''
+                    for v in where.value.value:
+                        value += v
+                else:
+                    value = where.value
+
+                parameters[
+                    str(where.query_value.context_id)
+                ] = value
+
+            django_query.connection.session.row_factory = (
+                ordered_dict_factory
+            )
+
+            results = django_query.connection.session.execute(
+                statement,
+                parameters
+            )
+
+            for row in results:
+                yield row
+
+        result = paged_query_generator(
+            cql_query,
+            query
+        )
 
         if (
             inefficient_predicates or
@@ -478,6 +526,7 @@ class CompoundPredicate(object):
                 sort_rows(result, order)
 
         if query.low_mark is not None or query.high_mark is not None:
-            result = result[query.low_mark:query.high_mark]
+            from itertools import islice
+            result = islice(result, query.low_mark, query.high_mark)
 
         return result

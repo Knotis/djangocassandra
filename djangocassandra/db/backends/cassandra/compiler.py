@@ -40,8 +40,6 @@ from .utils import (
 
 
 class CassandraQuery(NonrelQuery):
-    MAX_RESULT_COUNT = 10000
-
     def __init__(
         self,
         compiler,
@@ -94,8 +92,7 @@ class CassandraQuery(NonrelQuery):
             self.columns.append(f)
 
         self.where = None
-        self.default_limit = 1000000  # TODO: Make this a config setting
-        self.limit = self.default_limit
+        self.limit = None
         self.timeout = None  # TODO: Make this a config setting
         self.cache = None
         self.ordering = []
@@ -105,7 +102,6 @@ class CassandraQuery(NonrelQuery):
         self.high_mark = None
         self.low_mark = None
 
-        self.connection.ensure_connection()
         self.column_family_class = get_column_family(
             self.connection,
             self.query.model
@@ -143,6 +139,22 @@ class CassandraQuery(NonrelQuery):
         self.cql_query = self.column_family_class.objects.values_list(
             *self.column_names
         ).allow_filtering()
+
+    @property
+    def cassandra_pk_columns(self):
+        pk_columns = []
+        if self.partition_columns and len(self.partition_columns):
+            for column in self.partition_columns:
+                pk_columns.append(column)
+
+            if self.clustering_columns and len(self.clustering_columns):
+                for column in self.clustering_columns:
+                    pk_columns.append(column)
+
+        else:
+            pk_columns.append(self.pk_column)
+
+        return pk_columns
 
     @property
     def filterable_columns(self):
@@ -265,10 +277,11 @@ class CassandraQuery(NonrelQuery):
                 predicate.column in self.filterable_columns
             )
 
-        return self._get_rows_by_indexed_column(range_predicates)
+        query = self._get_rows_by_indexed_column(range_predicates)
+        return query
 
     def get_all_rows(self):
-        return self.cql_query.limit(self.default_limit).all()
+        return self._get_query_results()
 
     def _get_query_results(self):
         if None is self.cache:
@@ -279,6 +292,7 @@ class CassandraQuery(NonrelQuery):
 
     @safe_call
     def fetch(self, low_mark, high_mark):
+
         if None is self.root_predicate:
             raise Exception('No root query node')
 
@@ -302,7 +316,8 @@ class CassandraQuery(NonrelQuery):
         ):
             self.limit = high_mark
 
-        self.cql_query = self.cql_query.limit(self.limit)
+        if None is not self.limit:
+            self.cql_query = self.cql_query.limit(self.limit)
 
         results = self._get_query_results()
 
