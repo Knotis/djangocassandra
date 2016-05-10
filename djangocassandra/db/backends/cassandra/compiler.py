@@ -46,7 +46,7 @@ class CassandraQuery(NonrelQuery):
         self,
         compiler,
         fields,
-        allows_inefficient=True
+        allows_inefficient=None
     ):
         super(CassandraQuery, self).__init__(
             compiler,
@@ -58,8 +58,25 @@ class CassandraQuery(NonrelQuery):
         if hasattr(self.query.model, 'Cassandra'):
             self.cassandra_meta = self.query.model.Cassandra
 
+            if (
+                None is allows_inefficient and
+                hasattr(self.cassandra_meta, 'allow_inefficient_queries')
+            ):
+                self.allows_inefficient = (
+                    self.cassandra_meta.allow_inefficient_queries
+                )
+
         else:
             self.cassandra_meta = None
+
+        if None is allows_inefficient:
+            if 'ALLOW_INEFFICIENT_QUERIES' in self.connection.settings_dict:
+                self.allows_inefficient = self.connection.settings_dict[
+                    'ALLOW_INEFFICIENT_QUERIES'
+                ]
+
+            else:
+                self.allows_inefficient = True  # Default to True
 
         self.pk_column = (
             self.meta.pk.db_column
@@ -81,9 +98,6 @@ class CassandraQuery(NonrelQuery):
         self.limit = self.default_limit
         self.timeout = None  # TODO: Make this a config setting
         self.cache = None
-        self.allows_inefficient = (
-            allows_inefficient  # TODO: Make this a config setting
-        )
         self.ordering = []
         self.filters = []
         self.inefficient_ordering = []
