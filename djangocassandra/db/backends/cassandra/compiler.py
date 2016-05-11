@@ -330,7 +330,7 @@ class CassandraQuery(NonrelQuery):
         limit=None
     ):
         return len(
-            self.root_predicate.get_matching_rows(self)
+            [x for x in self.root_predicate.get_matching_rows(self)]
         )
 
     def delete(
