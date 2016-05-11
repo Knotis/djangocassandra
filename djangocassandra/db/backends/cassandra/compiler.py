@@ -102,6 +102,7 @@ class CassandraQuery(NonrelQuery):
         self.high_mark = None
         self.low_mark = None
 
+        self.connection.ensure_connection()
         self.column_family_class = get_column_family(
             self.connection,
             self.query.model
