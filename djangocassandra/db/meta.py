@@ -338,6 +338,7 @@ def get_column_family(
         str(model._meta.db_table),
         (CqlColumnFamily,), {
             '__model__': model,
+            '__keyspace__': keyspace,
             'table_options': table_options
         }
     )
