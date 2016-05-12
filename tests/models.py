@@ -27,9 +27,15 @@ from django.db.models import (
 )
 
 from djangocassandra.db.fields import AutoFieldUUID
-from djangocassandra.db.models import ColumnFamilyModel
+from djangocassandra.db.models import (
+    ColumnFamilyModel,
+    ColumnFamilyManager
+)
 
-from util import random_string
+from util import (
+    random_string,
+    random_integer
+)
 
 
 class ColumnFamilyTestModel(ColumnFamilyModel):
@@ -219,4 +225,57 @@ class DerivedPartitionPrimaryKeyModel(AbstractTestModel):
     )
     data = CharField(
         max_length=128
+    )
+
+
+class DenormalizedModelManager(ColumnFamilyManager):
+    denormalized_models = [
+        'DenormalizedModelA',
+        'Denormalizedmodelb'
+    ]
+
+
+class DenormalizedModelBase(ColumnFamilyModel):
+    class Meta:
+        abstract = True
+
+    objects = DenormalizedModelManager()
+
+    def auto_populate(self):
+        self.field_1 = random_string(16)
+        self.field_2 = random_integer()
+
+
+class DenormalizedModelA(DenormalizedModelBase):
+    class Cassandra:
+        partition_keys = [
+            'field_1'
+        ]
+        clustering_keys = [
+            'created'
+        ]
+
+    field_1 = CharField(
+        max_length=16,
+        primary_key=True
+    )
+    field_2 = IntegerField()
+    created = DateTimeField(
+        default=datetime.datetime.utcnow
+    )
+
+
+class DenormalizedModelB(DenormalizedModelBase):
+    class Cassandra:
+        partition_keys = [
+            'field_2'
+        ]
+        clustering_keys = [
+            'created'
+        ]
+
+    field_1 = CharField(max_length=16)
+    field_2 = IntegerField(primary_key=True)
+    created = DateTimeField(
+        default=datetime.datetime.utcnow
     )

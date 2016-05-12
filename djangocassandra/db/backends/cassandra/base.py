@@ -49,10 +49,7 @@ class DatabaseOperations(NonrelDatabaseOperations):
         tables,
         sequence_list
     ):
-        for table_name in tables:
-            self.connection.creation.flush_table(table_name)
-
-        return ''
+        raise Exception('Not Implemented')
 
     def _value_for_db(
         self,

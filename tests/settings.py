@@ -27,3 +27,7 @@ DATABASES = {
         }
     }
 }
+
+INSTALLED_APPS = [
+    'tests'
+]
