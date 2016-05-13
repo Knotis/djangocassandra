@@ -92,7 +92,7 @@ class CassandraQuery(NonrelQuery):
             self.columns.append(f)
 
         self.where = None
-        self.limit = None
+        self.limit = 100000000
         self.timeout = None  # TODO: Make this a config setting
         self.cache = None
         self.ordering = []
