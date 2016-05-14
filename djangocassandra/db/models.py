@@ -3,6 +3,9 @@ from django.db.models import (
     Model as DjangoModel,
     Manager
 )
+from django.db.models.fields import (
+    FieldDoesNotExist
+)
 
 from .fields import TokenPartitionKeyField
 from .query import QuerySet
@@ -18,7 +21,12 @@ class ColumnFamilyManager(Manager.from_queryset(QuerySet)):
     ):
         field_names = origin._meta.get_all_field_names()
         for name in field_names:
-            field = origin._meta.get_field(name)
+            try:
+                field = origin._meta.get_field(name)
+
+            except FieldDoesNotExist:
+                pass
+
             setattr(
                 destination,
                 field.name,
