@@ -26,7 +26,10 @@ from django.db.models import (
     ForeignKey
 )
 
-from djangocassandra.db.fields import AutoFieldUUID
+from djangocassandra.db.fields import (
+    AutoFieldUUID,
+    FieldUUID
+)
 from djangocassandra.db.models import (
     ColumnFamilyModel,
     ColumnFamilyManager
@@ -155,6 +158,11 @@ class RelatedModelC(Model):
         RelatedModelB,
         null=True
     )
+
+
+class UUIDFieldModel(Model):
+    id = AutoFieldUUID(primary_key=True)
+    uuid = FieldUUID()
 
 
 class ClusterPrimaryKeyModel(ColumnFamilyModel):

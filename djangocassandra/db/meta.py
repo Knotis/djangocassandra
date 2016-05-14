@@ -18,6 +18,7 @@ from .exception import DatabaseError
 internal_type_to_column_map = {
     'AutoField': columns.Integer,
     'AutoFieldUUID': columns.UUID,
+    'FieldUUID': columns.UUID,
     'RelatedAutoField': columns.UUID,
     'ForeignKey': columns.UUID,
     'OneToOneField': columns.UUID,
