@@ -91,6 +91,8 @@ class FieldUUID(with_metaclass(SubfieldBase, CharField)):
         if 'default' not in kwargs:
             kwargs['default'] = uuid.uuid4
 
+        kwargs['max_length'] = 36
+
         super(FieldUUID, self).__init__(
             *args,
             **kwargs

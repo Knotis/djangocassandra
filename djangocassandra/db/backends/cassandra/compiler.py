@@ -303,7 +303,7 @@ class CassandraQuery(NonrelQuery):
         if (
             high_mark is not None and
             low_mark is not None and
-            high_mark <= low_mark
+            high_mark < low_mark
         ):
             raise Exception('Can\'t slice query high_mark > low_mark')
 
