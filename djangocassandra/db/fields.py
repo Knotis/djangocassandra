@@ -4,7 +4,8 @@ from django.utils.six import with_metaclass
 from django.db.models import (
     Field,
     AutoField,
-    SubfieldBase
+    SubfieldBase,
+    CharField
 )
 from django.utils.translation import ugettext_lazy as _
 
@@ -73,6 +74,68 @@ class TokenPartitionKeyField(Field):
             ','.join(value.value),
             ')'
         ])
+
+
+class FieldUUID(with_metaclass(SubfieldBase, CharField)):
+    description = _('UUID')
+
+    default_error_messages = {
+        'invalid': _("'%(value)s' value must be a valid UUID."),
+    }
+
+    def __init__(
+        self,
+        *args,
+        **kwargs
+    ):
+        if 'default' not in kwargs:
+            kwargs['default'] = uuid.uuid4
+
+        super(FieldUUID, self).__init__(
+            *args,
+            **kwargs
+        )
+
+    def to_python(
+        self,
+        value
+    ):
+        if isinstance(value, uuid.UUID):
+            return str(value)
+
+        else:
+            return value
+
+    def get_prep_value(self, value):
+        value = super(FieldUUID, self).get_prep_value(value)
+        if (
+            value is None or
+            isinstance(value, uuid.UUID)
+        ):
+            return value
+
+        return uuid.UUID(value)
+
+    def get_internal_type(self):
+        return 'FieldUUID'
+
+    @staticmethod
+    def get_auto_value(self):
+        return uuid.uuid4()
+
+    def value_to_string(self, value):
+        if isinstance(value, basestring):
+            return value
+
+        try:
+            return str(value)
+
+        except (TypeError, ValueError):
+            raise Exception(
+                self.error_messages['invalid'],
+                code='invalid',
+                params={'value': value},
+            )
 
 
 class AutoFieldUUID(with_metaclass(SubfieldBase, AutoField)):
