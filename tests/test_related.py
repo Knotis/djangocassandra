@@ -9,7 +9,8 @@ from .models import (
 from .util import (
     connect_db,
     destroy_db,
-    create_model
+    create_model,
+    random_string
 )
 
 
@@ -69,6 +70,16 @@ class RelatedModelQueryTestCase(TestCase):
 
     def tearDown(self):
         destroy_db(self.connection)
+
+    def test_in_filter(self):
+        pks = []
+        for i in xrange(10):
+            pks.append(RelatedModelA.objects.create(
+                data=random_string()
+            ).pk)
+
+        qs = RelatedModelA.objects.filter(pk__in=pks)
+        self.assertEqual(len(pks), len(qs))
 
     def test_related_query(self):
         obj_a0 = RelatedModelA.objects.create(
