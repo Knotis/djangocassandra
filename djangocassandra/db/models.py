@@ -25,7 +25,7 @@ class ColumnFamilyManager(Manager.from_queryset(QuerySet)):
                 field = origin._meta.get_field(name)
 
             except FieldDoesNotExist:
-                pass
+                continue
 
             setattr(
                 destination,

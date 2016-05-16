@@ -429,7 +429,7 @@ class CassandraQuery(NonrelQuery):
             predicate = CompoundPredicate(compound_op, node.negated)
 
             for child in node.children:
-                child_predicate = self.init_predicate(
+                self.init_predicate(
                     predicate,
                     child
                 )

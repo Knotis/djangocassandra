@@ -348,6 +348,13 @@ class DatabasePartitionKeyTestCase(TestCase):
     def test_nothing(self):
         pass
 
+    def test_in_filter(self):
+        qs = PartitionPrimaryKeyModel.objects.filter(pk__in=[
+            'aaaa',
+            'bbbb'
+        ])
+        self.assertEqual(4, len(qs))
+
 
 class DerivedPartitionKeyModelTestCase(TestCase):
     def setUp(self):
