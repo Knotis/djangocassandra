@@ -1,9 +1,11 @@
+import re
 import itertools
 
 from django.db.utils import (
     ProgrammingError
 )
 
+from django.db.models import ForeignKey
 from django.db.models.sql.constants import MULTI
 from django.db.models.sql.where import (
     WhereNode,
@@ -389,9 +391,18 @@ class CassandraQuery(NonrelQuery):
             for partition_key in self.partition_columns:
                 found = False
                 for filter_tuple in self.filters:
-                    if partition_key == filter_tuple[0].name:
+                    field = filter_tuple[0]
+                    if isinstance(field, ForeignKey):
+                        partition_key = re.sub(
+                            '_id$',
+                            '',
+                            partition_key
+                        )
+
+                    if partition_key == field.name:
                         found = True
-                        break
+                        continue
+
                 if not found:
                     partition_key_filtered = False
                     break
