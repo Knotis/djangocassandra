@@ -287,3 +287,21 @@ class DenormalizedModelB(DenormalizedModelBase):
     created = DateTimeField(
         default=datetime.datetime.utcnow
     )
+
+
+class ForeignPartitionKeyModel(ColumnFamilyModel):
+    class Cassandra:
+        partition_keys = [
+            'related'
+        ]
+        clustering_keys = [
+            'created'
+        ]
+
+    related = ForeignKey(
+        ClusterPrimaryKeyModel,
+        primary_key=True
+    )
+    created = DateTimeField(
+        default=datetime.datetime.utcnow
+    )

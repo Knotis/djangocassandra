@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='djangocassandra',
-    version='0.4.5',
+    version='0.4.6',
     description='Cassandra support for the Django web framework',
     long_description=(
         'The Cassandra database backend for Django has been '

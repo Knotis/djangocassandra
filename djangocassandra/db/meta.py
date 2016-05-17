@@ -59,7 +59,7 @@ def get_cql_column_type(field):
     internal_type = field.get_internal_type()
     if internal_type == 'ForeignKey':
         internal_type = (
-            field.related.model._meta.pk.get_internal_type()
+            field.rel.to._meta.pk.get_internal_type()
         )
 
     return internal_type_to_column_map[

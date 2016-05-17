@@ -1,9 +1,12 @@
+import warnings
 from random import randint
 from unittest import TestCase
 
 from .models import (
     ColumnFamilyTestModel,
-    ColumnFamilyIndexedTestModel
+    ColumnFamilyIndexedTestModel,
+    ClusterPrimaryKeyModel,
+    ForeignPartitionKeyModel
 )
 
 from .util import (
@@ -159,3 +162,50 @@ class ColumnFamilyTestIndexedQueriesTestCase(TestCase):
 
         self.assertIsNotNone(partial_inefficient_get)
         self.assertTrue(partial_inefficient_get.pk in self.cached_rows.keys())
+
+
+class ForeignPartitionKeyModelTestCase(TestCase):
+    def setUp(self):
+        import django
+        django.setup()
+
+        self.connection = connect_db()
+
+        create_model(
+            self.connection,
+            ClusterPrimaryKeyModel
+        )
+        create_model(
+            self.connection,
+            ForeignPartitionKeyModel
+        )
+
+    def tearDown(self):
+        destroy_db(self.connection)
+
+    def test_order_by_efficient(self):
+        rel_instance = ClusterPrimaryKeyModel()
+        rel_instance.auto_populate()
+        rel_instance.save()
+
+        instances = []
+        for i in xrange(10):
+            instances.append(ForeignPartitionKeyModel.objects.create(
+                related=rel_instance
+            ))
+
+        with warnings.catch_warnings(record=True) as w:
+            ordered_query = ForeignPartitionKeyModel.objects.filter(
+                related=rel_instance
+            ).order_by('-created')
+
+            results = list(ordered_query)
+
+            self.assertEqual(
+                0,
+                len(w)
+            )
+            self.assertEqual(
+                10,
+                len(results)
+            )
