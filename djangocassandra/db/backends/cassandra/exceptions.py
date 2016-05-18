@@ -23,3 +23,15 @@ class InefficientQueryError(NotSupportedError):
 
     def __str__(self):
         return  (self.message + ':\n%s') % (repr(self.query),)
+
+
+class InvalidQueryOpException(NotSupportedError):
+    message = (
+        'The operation %s is not supported.'
+    )
+
+    def __init__(self, operation):
+        self.operation = operation
+
+    def __str__(self):
+        return (self.message + ':\n%s') % (repr(self.operation),)
