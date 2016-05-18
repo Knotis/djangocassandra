@@ -29,19 +29,27 @@ class OperationsTestCase(TestCase):
         destroy_db(self.connection)
 
     def test_flush(self):
-        try:
-            self.connection.ops.sql_flush(
-                None, [
-                    'ColumnFamilyTestModel'
-                ],
-                None
-            )
-            self.assertTrue(False)
+        from django.core.management.color import no_style
 
-        except Exception, e:
-            self.assertEqual(
-                e.message,
-                'Not Implemented'
+        test_model_names = ['testmodel']
+        cql = self.connection.ops.sql_flush(
+            no_style(),
+            test_model_names,
+            ()
+        )
+
+        self.assertEquals(
+            2,
+            len(cql)
+        )
+        self.assertEquals(
+            'use %s;' % (self.connection.keyspace,),
+            cql[0].lower()
+        )
+        for i in xrange(len(test_model_names)):
+            self.assertEquals(
+                'truncate %s;' % (test_model_names[i],),
+                cql[i + 1].lower()
             )
 
     def test_value_to_db_auto(self):

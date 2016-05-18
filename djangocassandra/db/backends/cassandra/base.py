@@ -47,9 +47,25 @@ class DatabaseOperations(NonrelDatabaseOperations):
         self,
         style,
         tables,
-        sequence_list
+        sequence_list,
+        allow_cascade=False
     ):
-        raise Exception('Not Implemented')
+        if tables:
+            cql = [
+                'use %s;' % (
+                    style.SQL_FIELD(self.connection.keyspace),
+                )
+            ]
+            for table in tables:
+                cql.append('%s %s;' % (
+                    style.SQL_KEYWORD('TRUNCATE'),
+                    style.SQL_FIELD(self.quote_name(table))
+                ))
+
+            return cql
+
+        else:
+            return []
 
     def _value_for_db(
         self,
