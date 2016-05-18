@@ -41,5 +41,5 @@ class DatabaseIntrospection(NonrelDatabaseIntrospection):
 
         return [row['columnfamily_name'] for row in table_list]
 
-    def table_names(self, cursor):
+    def table_names(self, cursor=None):
         return BaseDatabaseIntrospection.table_names(self, cursor)
