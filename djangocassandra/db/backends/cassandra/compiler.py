@@ -7,6 +7,7 @@ from django.db.utils import (
 
 from django.db.models import ForeignKey
 from django.db.models.sql.constants import MULTI
+from django.db.models.sql.datastructures import EmptyResultSet
 from django.db.models.sql.where import (
     WhereNode,
     AND,
@@ -35,6 +36,8 @@ from .predicate import (
     COMPOUND_OP_AND,
     COMPOUND_OP_OR
 )
+
+from .exceptions import InvalidQueryOpException
 
 from .utils import (
     safe_call
@@ -435,7 +438,7 @@ class CassandraQuery(NonrelQuery):
             elif node.connector == AND:
                 compound_op = COMPOUND_OP_AND
             else:
-                raise InvalidQueryOpException()
+                raise InvalidQueryOpException(node.connector)
 
             predicate = CompoundPredicate(compound_op, node.negated)
 
@@ -448,11 +451,16 @@ class CassandraQuery(NonrelQuery):
             if parent_predicate:
                 parent_predicate.add_child(predicate)
         else:
-            decoded_child = self._decode_child(node)
-            assert parent_predicate
+            try:
+                decoded_child = self._decode_child(node)
+                assert parent_predicate
 
-            parent_predicate.add_filter(*decoded_child)
-            self.filters.append(decoded_child)
+                parent_predicate.add_filter(*decoded_child)
+                self.filters.append(decoded_child)
+
+            except EmptyResultSet:
+                pass
+
             predicate = None
 
         return predicate
