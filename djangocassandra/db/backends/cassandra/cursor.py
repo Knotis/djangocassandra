@@ -81,7 +81,9 @@ class CassandraCursor(object):
     def execute(self, query, args=None):
         self.rows = self.session.execute(query, args)
         self.index = 0
-        self._with_rows = 0 != len(self.rows)
+        self._with_rows = (
+            None is not self.rows and len(self.rows)
+        )
 
         return self.rows
 
