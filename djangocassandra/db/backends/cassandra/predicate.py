@@ -13,6 +13,7 @@
 #   limitations under the License.
 
 import re
+import uuid
 import itertools
 import warnings
 
@@ -477,9 +478,10 @@ class CompoundPredicate(object):
             parameters = {}
             for where in cql_query._where:
                 if isinstance(where.value, Token):
-                    value = ''
-                    for v in where.value.value:
-                        value += v
+                    value = where.value.value
+                    if 1 == len(value):
+                        value = value[0]
+
                 else:
                     value = where.value
 

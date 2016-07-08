@@ -5,7 +5,8 @@ from django.db.models import (
     Field,
     AutoField,
     SubfieldBase,
-    CharField
+    CharField,
+    ForeignKey
 )
 from django.utils.translation import ugettext_lazy as _
 
@@ -55,7 +56,37 @@ class TokenPartitionKeyField(Field):
         if None is instance:
             return self
 
-        return Token(instance.pk)
+        if (
+            hasattr(instance, 'Cassandra') and
+            hasattr(instance.Cassandra, 'partition_keys') and
+            1 < len(instance.Cassandra.partition_keys)
+        ):
+            compound_pk = []
+            for key in instance.Cassandra.partition_keys:
+                field = instance._meta.get_field(key)
+                if isinstance(field, ForeignKey):
+                    key += '_id'
+
+                value = getattr(instance, key)
+                try:
+                    value = uuid.UUID(value)
+
+                except:
+                    pass
+
+                compound_pk.append(value)
+
+            pk = tuple(compound_pk)
+
+        else:
+            pk = instance.pk
+            try:
+                pk = uuid.UUID(pk)
+
+            except:
+                pass
+
+        return Token(pk)
 
     def __set__(
         self,
