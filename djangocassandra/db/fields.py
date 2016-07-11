@@ -102,7 +102,7 @@ class TokenPartitionKeyField(Field):
         value = self._get_val_from_obj(obj)
         return ''.join([
             'token(',
-            ','.join(value.value),
+            ','.join(str(value.value)),
             ')'
         ])
 
