@@ -121,7 +121,7 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
 
             if partition_keys:
                 for column_name in partition_keys:
-                    field = model._meta.get_field(column_name)
+                    field = registered_model._meta.get_field(column_name)
                     field_name = (
                         field.db_column if
                         field.db_column else
@@ -141,7 +141,7 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
                     ] = column
 
             else:
-                primary_key_field = model._meta.pk
+                primary_key_field = registered_model._meta.pk
                 primary_field_name = (
                     primary_key_field.db_column
                     if primary_key_field.db_column
@@ -169,7 +169,7 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
                 clustering_keys = cassandra_options.clustering_keys
 
                 for column_name in clustering_keys:
-                    field = model._meta.get_field(column_name)
+                    field = registered_model._meta.get_field(column_name)
                     field_name = (
                         field.db_column if
                         field.db_column else
@@ -194,7 +194,7 @@ class CqlColumnFamilyMetaClass(CqlEngineModelMetaClass):
                         field.column
                     ] = column
 
-            for field in model._meta.fields:
+            for field in registered_model._meta.fields:
                 if 'Token' == field.get_internal_type():
                     continue
 
