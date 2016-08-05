@@ -75,6 +75,9 @@ class DatabaseOperations(NonrelDatabaseOperations):
         db_type,
         lookup
     ):
+        if 'DictField' == field_kind:
+            return value
+
         return super(DatabaseOperations, self)._value_for_db(
             value,
             field,
