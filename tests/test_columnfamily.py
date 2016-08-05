@@ -6,7 +6,8 @@ from .models import (
     ColumnFamilyTestModel,
     ColumnFamilyIndexedTestModel,
     ClusterPrimaryKeyModel,
-    ForeignPartitionKeyModel
+    ForeignPartitionKeyModel,
+    DictFieldModel
 )
 
 from .util import (
@@ -209,3 +210,26 @@ class ForeignPartitionKeyModelTestCase(TestCase):
                 10,
                 len(results)
             )
+
+
+class TestDictFieldModel(TestCase):
+    def setUp(self):
+        import django
+        django.setup()
+
+        self.connection = connect_db()
+
+        create_model(
+            self.connection,
+            DictFieldModel
+        )
+
+    def tearDown(self):
+        destroy_db(self.connection)
+
+    def test_creation(self):
+        instance = DictFieldModel.objects.create(
+            parameters={'key0': 'value0', 'key1': 'value1'}
+        )
+
+        self.assertIsNotNone(instance)

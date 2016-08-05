@@ -26,6 +26,7 @@ from django.db.models import (
     ForeignKey
 )
 
+from djangotoolbox.fields import DictField
 from djangocassandra.db.fields import (
     AutoFieldUUID,
     FieldUUID
@@ -305,3 +306,8 @@ class ForeignPartitionKeyModel(ColumnFamilyModel):
     created = DateTimeField(
         default=datetime.datetime.utcnow
     )
+
+
+class DictFieldModel(ColumnFamilyModel):
+    id = AutoFieldUUID(primary_key=True)
+    parameters = DictField(CharField(max_length=4096))
