@@ -19,13 +19,6 @@ from cassandra.cqltypes import (
     BytesType
 )
 
-from cassandra.cqlengine.management import (
-    sync_table,
-    create_keyspace_simple
-)
-
-from djangocassandra.db.meta import get_column_family
-
 
 class DatabaseCreation(NonrelDatabaseCreation):
     data_typename_to_typeclass = {
@@ -134,11 +127,6 @@ class DatabaseCreation(NonrelDatabaseCreation):
         style,  # Used for styling output
         known_models=set()
     ):
-        create_keyspace_simple(
-            self.connection.keyspace,
-            1
-        )
-
         meta = model._meta
 
         if (
@@ -148,11 +136,8 @@ class DatabaseCreation(NonrelDatabaseCreation):
         ):
             return [], {}
 
-        column_family = get_column_family(
-            self.connection,
-            model
-        )
-        sync_table(column_family)
+        schema_editor = self.connection.schema_editor()
+        schema_editor.create_model(model)
 
         return [], {}
 

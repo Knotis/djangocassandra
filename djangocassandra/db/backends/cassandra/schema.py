@@ -30,10 +30,7 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
         self,
         model
     ):
-        db_management.create_keyspace_simple(
-            self.connection.session.keyspace,
-            1
-        )
+        self.connection.create_keyspace()
 
         column_family = get_column_family(
             self.connection,
