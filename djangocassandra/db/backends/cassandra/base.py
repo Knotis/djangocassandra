@@ -325,6 +325,11 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
     def create_keyspace(
         self,
     ):
+        '''
+        Ensure self.keyspace is set appropriately.
+        '''
+        self.current_keyspace()
+
         settings = self.settings_dict
 
         keyspace_default_settings = {
