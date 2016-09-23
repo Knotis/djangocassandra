@@ -16,7 +16,7 @@ from cassandra.metadata import (
 )
 
 from cassandra.cqlengine import connection
-from cassandra.cqlengine.management import create_keyspace
+from cassandra.cqlengine.management import create_keyspace_simple
 
 from .creation import DatabaseCreation
 from .introspection import DatabaseIntrospection
@@ -301,9 +301,6 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         )
 
         self.keyspace = keyspace
-        self.session = connection.get_session()
-        if not(self.session is None or self.session.is_shutdown):
-            return CassandraCursor(self.session)
 
         connection.setup(
             contact_points,
@@ -311,10 +308,9 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
             **connection_settings
         )
 
-        self.cluster = connection.get_cluster()
         self.session = connection.get_session()
+        self.cluster = connection.get_cluster()
         self.session.default_timeout = None  # Should be in config.
-
         return CassandraCursor(self.session)
 
     def current_keyspace(self):
@@ -347,7 +343,10 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
         keyspace_settings = keyspace_default_settings
 
         self.ensure_connection()
-        create_keyspace(
+        create_keyspace_simple(
             self.keyspace,
-            **keyspace_settings
+            keyspace_settings.get(
+                'replication_factor',
+                1
+            )
         )

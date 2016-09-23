@@ -27,7 +27,7 @@ internal_type_to_column_map = {
     'BooleanField': columns.Boolean,
     'CharField': columns.Text,
     'CommaSeparatedIntegerField': columns.Text,
-    'DateField': columns.Date,
+    'DateField': columns.DateTime,
     'DateTimeField': columns.DateTime,
     'DecimalField': columns.Decimal,
     'EmailField': columns.Text,

@@ -345,15 +345,19 @@ class DatabasePartitionKeyTestCase(TestCase):
     def tearDown(self):
         destroy_db(self.connection)
 
-    def test_nothing(self):
-        pass
-
     def test_in_filter(self):
         qs = PartitionPrimaryKeyModel.objects.filter(pk__in=[
             'aaaa',
             'bbbb'
         ])
         self.assertEqual(4, len(qs))
+
+    def test_filter_all_partition_keys(self):
+        qs = PartitionPrimaryKeyModel.objects.filter(
+            field_1='aaaa',
+            field_2='bbbb'
+        )
+        self.assertEqual(1, len(qs))
 
 
 class DerivedPartitionKeyModelTestCase(TestCase):

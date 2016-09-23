@@ -20,7 +20,8 @@ from cassandra.cqltypes import (
 )
 
 from cassandra.cqlengine.management import (
-    sync_table
+    sync_table,
+    create_keyspace_simple
 )
 
 from djangocassandra.db.meta import get_column_family
@@ -133,7 +134,11 @@ class DatabaseCreation(NonrelDatabaseCreation):
         style,  # Used for styling output
         known_models=set()
     ):
-        self.connection.create_keyspace()
+        create_keyspace_simple(
+            self.connection.keyspace,
+            1
+        )
+
         meta = model._meta
 
         if (

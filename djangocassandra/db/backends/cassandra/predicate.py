@@ -499,6 +499,9 @@ class CompoundPredicate(object):
             )
 
             for row in results:
+                for key, value in cql_query._deferred_values.iteritems():
+                    row[key] = value
+
                 yield row
 
         result = paged_query_generator(
