@@ -6,7 +6,7 @@ import string
 
 from django.conf import settings
 
-from cassandra.cqlengine.management import delete_keyspace
+from cassandra.cqlengine.management import drop_keyspace
 
 from djangocassandra.db.backends.cassandra.base import DatabaseWrapper
 
@@ -36,7 +36,7 @@ def destroy_db(connection):
             key for key in settings.DATABASES['default']['KEYSPACES'].keys()
         ]
         for keyspace in keyspace_names:
-            delete_keyspace(keyspace)
+            drop_keyspace(keyspace)
 
 
 def random_float(minimum=sys.float_info.min, maximum=sys.float_info.max):
