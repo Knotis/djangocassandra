@@ -15,7 +15,10 @@ from cassandra.metadata import (
     SimpleStrategy
 )
 
-from cassandra.cqlengine import connection
+from cassandra.cqlengine import (
+    connection,
+    CQLEngineException
+)
 from cassandra.cqlengine.management import create_keyspace_simple
 
 from .creation import DatabaseCreation
@@ -302,11 +305,15 @@ class DatabaseWrapper(NonrelDatabaseWrapper):
 
         self.keyspace = keyspace
 
-        connection.setup(
-            contact_points,
-            keyspace,
-            **connection_settings
-        )
+        try:
+            connection.get_connection()
+
+        except CQLEngineException:
+            connection.setup(
+                contact_points,
+                keyspace,
+                **connection_settings
+            )
 
         self.session = connection.get_session()
         self.cluster = connection.get_cluster()

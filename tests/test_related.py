@@ -123,3 +123,7 @@ class RelatedModelQueryTestCase(TestCase):
             obj_c0.model_b.model_a.data,
             obj_c0_stored.model_b.model_a.data
         )
+
+        obj_a0_stored.delete()
+        obj_b0_stored.delete()
+        obj_c0_stored.delete()
