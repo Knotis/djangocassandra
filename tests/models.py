@@ -1,6 +1,7 @@
 import datetime
 
 from django.db.models import (
+    DO_NOTHING,
     Model,
     CharField,
     BigIntegerField,
@@ -145,7 +146,8 @@ class RelatedModelB(Model):
     id = AutoFieldUUID(primary_key=True)
     model_a = ForeignKey(
         RelatedModelA,
-        null=True
+        null=True,
+        on_delete=DO_NOTHING
     )
 
 
@@ -153,11 +155,13 @@ class RelatedModelC(Model):
     id = AutoFieldUUID(primary_key=True)
     model_a = ForeignKey(
         RelatedModelA,
-        null=True
+        null=True,
+        on_delete=DO_NOTHING
     )
     model_b = ForeignKey(
         RelatedModelB,
-        null=True
+        null=True,
+        on_delete=DO_NOTHING
     )
 
 

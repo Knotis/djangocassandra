@@ -48,6 +48,9 @@ class DatabaseInsertionTestCase(TestCase):
             ClusterPrimaryKeyModel
         )
 
+        import django
+        django.setup()
+
     def tearDown(self):
         destroy_db(self.connection)
 
@@ -78,18 +81,42 @@ class DatabaseInsertionTestCase(TestCase):
         self.assertEqual(result.field_2, inserted.field_2)
         self.assertEqual(result.field_3, inserted.field_3)
 
+        pk = result.pk
+        result.delete()
+
+        try:
+            should_not_exist = cf_simple_model.objects.get(
+                id=pk
+            )
+            self.assertIsNone(should_not_exist)
+
+        except cf_simple_model.DoesNotExist:
+            pass
+
     def test_datetime_field_model(self):
         datetime_instance = DateTimeTestModel.objects.create(
             datetime_field=datetime.datetime.now()
         )
         self.assertIsNotNone(datetime_instance)
 
-    def test_complicated_insertion(self):
+    def test_complicated_insertion_and_delete(self):
         instance = ComplicatedTestModel()
         instance.auto_populate()
         instance.save()
         self.assertIsNotNone(instance)
         self.assertIsNotNone(instance.pk)
+
+        pk = instance.pk
+        instance.delete()
+
+        try:
+            should_not_exist = ComplicatedTestModel.objects.get(
+                pk=pk
+            )
+            self.assertIsNone(should_not_exist)
+
+        except ComplicatedTestModel.DoesNotExist:
+            pass
 
     def test_partition_key_test_model(self):
         instance = PartitionPrimaryKeyModel()
