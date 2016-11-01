@@ -354,9 +354,14 @@ class CassandraQuery(NonrelQuery):
         else:
             rows = self.root_predicate.get_matching_rows(self)
             for row in rows:
-                self.column_family_class.get(**{
-                    field: row[field] for field in self.partition_columns
-                }).delete()
+                filterable_columns = itertools.chain(
+                    self.partition_columns,
+                    self.clustering_columns
+                )
+                query_parameters = {
+                    field: row[field] for field in filterable_columns
+                }
+                self.column_family_class.get(**query_parameters).delete()
 
     def order_by(
         self,
