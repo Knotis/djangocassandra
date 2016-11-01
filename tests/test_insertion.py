@@ -119,11 +119,24 @@ class DatabaseInsertionTestCase(TestCase):
             pass
 
     def test_partition_key_test_model(self):
-        instance = PartitionPrimaryKeyModel()
-        instance.auto_populate()
-        instance.save()
-        self.assertIsNotNone(instance)
-        self.assertIsNotNone(instance.pk)
+        instance_0 = PartitionPrimaryKeyModel()
+        instance_0.auto_populate()
+        instance_0.save()
+
+        self.assertIsNotNone(instance_0)
+        self.assertIsNotNone(instance_0.pk)
+
+        instance_1 = PartitionPrimaryKeyModel()
+        instance_1.auto_populate()
+        instance_1.field_1 = instance_0.field_1
+        instance_1.field_2 = instance_0.field_2
+        instance_1.save()
+
+        self.assertIsNotNone(instance_1)
+        self.assertIsNotNone(instance_1.pk)
+
+        instance_0.delete()
+        instance_1.delete()
 
     def test_clustering_key_test_model(self):
         instance = ClusterPrimaryKeyModel()
