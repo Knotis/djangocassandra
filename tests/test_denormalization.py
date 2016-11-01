@@ -58,3 +58,23 @@ class DenormalizationTestCase(TestCase):
             instance_a.created,
             instance_b.created
         )
+
+        instance_b.delete()
+
+        try:
+            deleted_instance_a = DenormalizedModelA.objects.get(
+                field_1=instance_a.field_1
+            )
+            self.assertIsNone(deleted_instance_a)
+
+        except DenormalizedModelA.DoesNotExist:
+            pass
+
+        try:
+            deleted_instance_b = DenormalizedModelA.objects.get(
+                field_2=instance_a.field_2
+            )
+            self.assertIsNone(deleted_instance_b)
+
+        except DenormalizedModelA.DoesNotExist:
+            pass

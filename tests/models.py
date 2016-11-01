@@ -244,7 +244,7 @@ class DerivedPartitionPrimaryKeyModel(AbstractTestModel):
 class DenormalizedModelManager(ColumnFamilyManager):
     denormalized_models = [
         'DenormalizedModelA',
-        'Denormalizedmodelb'
+        'DenormalizedmodelB'
     ]
 
 
