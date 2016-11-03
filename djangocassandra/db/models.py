@@ -48,46 +48,6 @@ class ColumnFamilyManager(Manager.from_queryset(QuerySet)):
             **kwargs
         )
 
-        for model in self.denormalized_models:
-            app_label = None
-
-            if isinstance(model, tuple):
-                app_label = model[0]
-                model = model[1]
-
-            if isinstance(model, str):
-                if None is app_label:
-                    app_label = self.model._meta.app_label
-
-                model = apps.get_model(
-                    app_label=app_label,
-                    model_name=model
-                )
-
-            if (
-                not issubclass(model, DjangoModel) or
-                isinstance(instance, model)
-            ):
-                continue
-
-            if hasattr(model, 'should_denormalize'):
-                if not model.should_denormalize(instance):
-                    continue
-
-            denormalized_instance = model()
-            if hasattr(model, 'denormalize'):
-                denormalized_instance.denormalize(
-                    instance
-                )
-
-            else:
-                ColumnFamilyManager.denormalize(
-                    instance,
-                    denormalized_instance
-                )
-
-            denormalized_instance.save()
-
         return instance
 
 
@@ -132,10 +92,68 @@ class ColumnFamilyModel(DjangoModel):
         kwargs['force_insert'] = True
         kwargs['force_update'] = False
 
-        return super(ColumnFamilyModel, self).save(
+        super(ColumnFamilyModel, self).save(
             *args,
             **kwargs
         )
+
+        if hasattr(
+            self._meta.model.objects,
+            'denormalized_models'
+        ):
+            denormalized_models = self._meta.model.objects.denormalized_models
+
+        else:
+            denormalized_models = []
+
+        if (
+            None is denormalized_models or
+            0 >= len(denormalized_models)
+        ):
+            return
+
+        for model in denormalized_models:
+            app_label = None
+
+            if isinstance(model, tuple):
+                app_label = model[0]
+                model = model[1]
+
+            if isinstance(model, str):
+                if None is app_label:
+                    app_label = self._meta.app_label
+
+                model = apps.get_model(
+                    app_label=app_label,
+                    model_name=model
+                )
+
+            if (
+                not issubclass(model, DjangoModel) or
+                isinstance(self, model)
+            ):
+                continue
+
+            if hasattr(model, 'should_denormalize'):
+                if not model.should_denormalize(self):
+                    continue
+
+            denormalized_instance = model()
+            if hasattr(model, 'denormalize'):
+                denormalized_instance.denormalize(
+                    self
+                )
+
+            else:
+                ColumnFamilyManager.denormalize(
+                    self,
+                    denormalized_instance
+                )
+
+            super(ColumnFamilyModel, denormalized_instance).save(
+                *args,
+                **kwargs
+            )
 
     def delete(
         self,
@@ -182,6 +200,10 @@ class ColumnFamilyModel(DjangoModel):
                 isinstance(self, model)
             ):
                 continue
+
+            if hasattr(model, 'should_denormalize'):
+                if not model.should_denormalize(self):
+                    continue
 
             denormalized_instance = model()
             if hasattr(model, 'denormalize'):
