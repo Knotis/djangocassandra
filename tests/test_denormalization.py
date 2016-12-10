@@ -1,4 +1,5 @@
 from unittest import TestCase
+from datetime import datetime
 
 from .models import (
     DenormalizedModelA,
@@ -39,11 +40,24 @@ class DenormalizationTestCase(TestCase):
             field_2=random_integer(maximum=999999)
         )
 
+        other_instances = []
+        for _ in xrange(10):
+            other_instances.append(
+                DenormalizedModelA.objects.create(
+                    field_1=instance_a.field_1,
+                    field_2=random_integer(maximum=999999)
+                )
+            )
+
         instance_a = DenormalizedModelA.objects.get(
-            field_1=instance_a.field_1
+            field_1=instance_a.field_1,
+            field_2=instance_a.field_2,
+            created=instance_a.created
         )
         instance_b = DenormalizedModelB.objects.get(
-            field_2=instance_a.field_2
+            field_1=instance_a.field_1,
+            field_2=instance_a.field_2,
+            created=instance_a.created
         )
 
         self.assertEqual(
@@ -63,7 +77,9 @@ class DenormalizationTestCase(TestCase):
 
         try:
             deleted_instance_a = DenormalizedModelA.objects.get(
-                field_1=instance_a.field_1
+                field_1=instance_a.field_1,
+                field_2=instance_a.field_2,
+                created=instance_a.created
             )
             self.assertIsNone(deleted_instance_a)
 
@@ -71,10 +87,22 @@ class DenormalizationTestCase(TestCase):
             pass
 
         try:
-            deleted_instance_b = DenormalizedModelA.objects.get(
-                field_2=instance_a.field_2
+            deleted_instance_b = DenormalizedModelB.objects.get(
+                field_1=instance_a.field_1,
+                field_2=instance_a.field_2,
+                created=instance_a.created
             )
             self.assertIsNone(deleted_instance_b)
 
-        except DenormalizedModelA.DoesNotExist:
+        except DenormalizedModelB.DoesNotExist:
             pass
+
+        self.assertEqual(
+            len(other_instances),
+            len(DenormalizedModelA.objects.all())
+        )
+
+        self.assertEqual(
+            len(other_instances),
+            len(DenormalizedModelB.objects.all())
+        )

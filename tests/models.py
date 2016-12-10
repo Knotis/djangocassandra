@@ -8,7 +8,6 @@ from django.db.models import (
     BooleanField,
     CommaSeparatedIntegerField,
     DateField,
-    DateTimeField,
     DecimalField,
     EmailField,
     FileField,
@@ -30,7 +29,9 @@ from django.db.models import (
 from djangotoolbox.fields import DictField
 from djangocassandra.db.fields import (
     AutoFieldUUID,
-    FieldUUID
+    FieldUUID,
+    PrimaryKeyField,
+    DateTimeField
 )
 from djangocassandra.db.models import (
     ColumnFamilyModel,
@@ -262,16 +263,16 @@ class DenormalizedModelBase(ColumnFamilyModel):
 class DenormalizedModelA(DenormalizedModelBase):
     class Cassandra:
         partition_keys = [
-            'field_1'
+            'field_1',
+            'field_2'
         ]
         clustering_keys = [
             'created'
         ]
 
-    field_1 = CharField(
-        max_length=16,
-        primary_key=True
-    )
+    field_1 = PrimaryKeyField(field_class=CharField, field_kwargs={
+        "max_length": 16
+    })
     field_2 = IntegerField()
     created = DateTimeField(
         default=datetime.datetime.utcnow
@@ -284,11 +285,14 @@ class DenormalizedModelB(DenormalizedModelBase):
             'field_2'
         ]
         clustering_keys = [
-            'created'
+            'created',
+            'field_1'
         ]
 
     field_1 = CharField(max_length=16)
-    field_2 = IntegerField(primary_key=True)
+    field_2 = PrimaryKeyField(
+        field_class=IntegerField
+    )
     created = DateTimeField(
         default=datetime.datetime.utcnow
     )

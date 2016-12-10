@@ -126,11 +126,14 @@ class CassandraQuery(NonrelQuery):
         if hasattr(self.cassandra_meta, 'partition_keys'):
             for key in self.cassandra_meta.partition_keys:
                 field = self.meta.get_field(key)
-                self.partition_columns.append(
+                field_name = (
                     field.db_column
                     if field.db_column
                     else field.column
                 )
+
+                if field_name not in self.partition_columns:
+                    self.partition_columns.append(field_name)
 
         self.clustering_columns = []
         if hasattr(self.cassandra_meta, 'clustering_keys'):
@@ -347,8 +350,8 @@ class CassandraQuery(NonrelQuery):
             self.clustering_columns,
             self.indexed_columns
         ):
-            self.root_predicate.get_matching_rows(self)
-            for r in self.cql_query:
+            query = self.root_predicate.get_matching_rows(self)
+            for r in query:
                 r.delete()
 
         else:
@@ -455,6 +458,7 @@ class CassandraQuery(NonrelQuery):
 
             if parent_predicate:
                 parent_predicate.add_child(predicate)
+
         else:
             try:
                 decoded_child = self._decode_child(node)

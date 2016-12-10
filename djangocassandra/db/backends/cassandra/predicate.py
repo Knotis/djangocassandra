@@ -29,6 +29,9 @@ from .exceptions import InefficientQueryError
 
 from .utils import sort_rows
 
+from djangocassandra.db.models import PrimaryKeyValue
+
+
 SECONDARY_INDEX_SUPPORT_ENABLED = True
 
 
@@ -245,25 +248,55 @@ class OperationPredicate(object):
 
     def can_evaluate_efficiently(
         self,
-        pk_column,
+        partition_columns,
         clustering_columns,
         indexed_columns
     ):
         return False
 
     def row_matches(self, row):
-        row_value = row.get(self.column, None)
+        def _get_row_value(row, value):
+            if (
+                isinstance(value, PrimaryKeyValue) or (
+                    isinstance(value, list) and
+                    0 < len(value) and
+                    isinstance(value[0], PrimaryKeyValue)
+                )
+            ):
+                if isinstance(value, list):
+                    keys = value[0].keys()
+
+                else:
+                    keys = value.keys()
+
+                return {
+                    k: v for
+                    k, v in
+                    row.iteritems() if
+                    k in keys
+                }
+
+            else:
+                return row.get(self.column, None)
+
+        row_value = _get_row_value(row, self.value)
+
         if self.op == 'isnull':
             return row_value is None
+
         # FIXME: Not sure if the following test is correct in all cases
         if (row_value is None) or (self.value is None):
             return False
+
         if self.op == 'in':
             return row_value in self.value
+
         if self.op == 'istartswith':
             return row_value.lower().startswith(self.value.lower())
+
         elif self.op == 'endswith':
             return row_value.endswith(self.value)
+
         elif self.op == 'iendswith':
             return row_value.lower().endswith(self.value.lower())
         elif self.op == 'iexact':
@@ -316,7 +349,7 @@ class CompoundPredicate(object):
 
     def can_evaluate_efficiently(
         self,
-        pk_column,
+        partition_columns,
         clustering_columns,
         indexed_columns
     ):
@@ -326,7 +359,7 @@ class CompoundPredicate(object):
         if self.op == COMPOUND_OP_AND:
             for child in self.children:
                 if not child.can_evaluate_efficiently(
-                    pk_column,
+                    partition_columns,
                     clustering_columns,
                     indexed_columns
                 ):
@@ -337,9 +370,9 @@ class CompoundPredicate(object):
         elif self.op == COMPOUND_OP_OR:
             for child in self.children:
                 if not child.can_evaluate_efficiently(
-                        pk_column,
-                        clustering_columns,
-                        indexed_columns
+                    partition_columns,
+                    clustering_columns,
+                    indexed_columns
                 ):
                     return False
 
@@ -425,8 +458,6 @@ class CompoundPredicate(object):
         self.children.append(child_query_node)
 
     def get_matching_rows(self, query):
-        pk_column = query.query.get_meta().pk.column
-
         # In the first pass we handle the query nodes that can be processed
         # efficiently. Hopefully, in most cases, this will result in a
         # subset of the rows that is much smaller than the overall number
@@ -437,9 +468,9 @@ class CompoundPredicate(object):
         result = None
         for predicate in self.children:
             if predicate.can_evaluate_efficiently(
-                pk_column,
+                query.partition_columns,
                 query.clustering_columns,
-                query.filterable_columns
+                query.indexed_columns
             ):
                 range_predicates.append(predicate)
 

@@ -1,3 +1,6 @@
+from itertools import chain
+from collections import OrderedDict
+
 from django.apps import apps
 from django.db.models import (
     Model as DjangoModel,
@@ -8,6 +11,7 @@ from django.db.models.fields import (
 )
 
 from .fields import TokenPartitionKeyField
+
 from .query import QuerySet
 
 
@@ -51,6 +55,23 @@ class ColumnFamilyManager(Manager.from_queryset(QuerySet)):
         return instance
 
 
+class PrimaryKeyValue(OrderedDict):
+    def __int__(self):
+        return self.__hash__()
+
+    def __hash__(self):
+        return hash(self.to_tuple())
+
+    def __str__(self):
+        return str(self.to_tuple())
+
+    def __unicode__(self):
+        return unicode(self.to_tuple())
+
+    def to_tuple(self):
+        return tuple(self.iteritems())
+
+
 class ColumnFamilyModel(DjangoModel):
     class Meta:
         abstract = True
@@ -66,6 +87,96 @@ class ColumnFamilyModel(DjangoModel):
             *args,
             **kwargs
         )
+
+    def __hash__(self):
+        pk_value = self._get_pk_val()
+
+        if isinstance(pk_value, dict):
+            return int(pk_value)
+
+        else:
+            return super(
+                ColumnFamilyModel,
+                self
+            ).__hash__()
+        
+
+    def _get_pk_val(self, meta=None):
+        if (
+            hasattr(self, "Cassandra") and
+            hasattr(self.Cassandra, "partition_keys")
+        ):
+            if hasattr(self.Cassandra, "clustering_keys"):
+                all_keys = [key for key in chain(
+                    self.Cassandra.partition_keys,
+                    self.Cassandra.clustering_keys
+                )]
+
+            else:
+                all_keys = self.Cassandra.partition_keys
+
+            if 1 < len(all_keys):
+                pk_value = PrimaryKeyValue()
+                for key in all_keys:
+                    pk_value[key] = getattr(self, key)
+
+                return pk_value
+
+        return super(
+            ColumnFamilyModel,
+            self
+        )._get_pk_val(meta=meta)
+                
+    def _set_pk_val(self, value):
+        if (
+            hasattr(self, "Cassandra") and
+            hasattr(self.Cassandra, "partition_keys")
+        ):
+            if hasattr(self.Cassandra, "clustering_keys"):
+                all_keys = [field for field in chain(
+                    self.Cassandra.partition_keys,
+                    self.Cassandra.clustering_keys
+                )]
+
+            else:
+                all_keys = self.Cassandra.partition_keys
+
+            if 1 < len(all_keys):
+                if not isinstance(value, dict):
+                    raise self.PrimaryKeyInconsistencyException(
+                        "PK values must be a dict of the form "
+                        "{ field: value, ... }"
+                    )
+
+                items = [i for i in value.iteritems()]
+
+                if len(items) != len(pk_fields):
+                    raise self.PrimaryKeyInconsistencyException(
+                        "Expected %s field/value pairs, recieved %s." % (
+                            len(pk_fields),
+                            len(items)
+                        )
+                    )
+
+                for field, value in items:
+                    if field not in pk_fields:
+                        raise self.PrimaryKeyInconsistencyException((
+                            "Field \"%s\" is not part of the primary key."
+                            "must be one of %s"
+                        ) % (field, pk_fields))
+
+                # Loop twice to avoid partialy updating the key.
+                for field, value in items:
+                    setattr(self, field, value)
+
+                return None
+
+        return super(
+            ColumnFamilyModel,
+            self
+        )._set_pk_val(value)
+
+    pk = property(_get_pk_val, _set_pk_val)
 
     @staticmethod
     def should_denormalize(instance):
@@ -231,3 +342,6 @@ class ColumnFamilyModel(DjangoModel):
         )
 
     objects = ColumnFamilyManager()
+
+    class PrimaryKeyInconsistencyException(Exception):
+        pass
