@@ -1,16 +1,36 @@
 import uuid
 
+from datetime import datetime
 from django.utils.six import with_metaclass
 from django.db.models import (
     Field,
     AutoField,
     SubfieldBase,
     CharField,
-    ForeignKey
+    ForeignKey,
+    DateTimeField as DjangoDateTimeField
 )
 from django.utils.translation import ugettext_lazy as _
 
 from cassandra.cqlengine.functions import Token
+
+class DateTimeField(DjangoDateTimeField):
+    def get_prep_value(self, value):
+        # Hack cassandra truncates microseconds to milliseconds.
+        value = datetime(
+            value.year,
+            value.month,
+            value.day,
+            value.hour,
+            value.minute,
+            value.second,
+            int(str(
+                value.microsecond
+            )[:-3] + "000"),
+            value.tzinfo
+        )
+
+        return super(DateTimeField, self).get_prep_value(value)
 
 
 class TokenPartitionKeyField(Field):
@@ -231,3 +251,63 @@ class AutoFieldUUID(with_metaclass(SubfieldBase, AutoField)):
                 code='invalid',
                 params={'value': value},
             )
+
+
+class PrimaryKeyField(Field):
+    def __init__(
+        self,
+        field_class=AutoFieldUUID,
+        field_args=[],
+        field_kwargs={},
+        *args,
+        **kwargs
+    ):
+        self.field_class = field_class
+        self.field_args = field_args
+        self.field_kwargs = field_kwargs
+
+        super(PrimaryKeyField, self).__init__(
+            *args,
+            **kwargs
+        )
+
+    def contribute_to_class(
+        self,
+        cls,
+        name
+    ):
+        self.name = name
+
+        if (
+            hasattr(cls, "Cassandra") and
+            hasattr(cls.Cassandra, "partition_keys")
+        ):
+            if hasattr(cls.Cassandra, "clustering_keys"):
+                self.all_keys = [key for key in chain(
+                    cls.Cassandra.partition_keys,
+                    cls.Cassandra.clustering_keys
+                )]
+
+            else:
+                self.all_keys = cls.Cassandra.partition_keys
+
+        class PrimaryKeyField(self.field_class):
+            def __init__(self, *args, **kwargs):
+                kwargs["primary_key"] = True
+
+                super(PrimaryKeyField, self).__init__(
+                    *args,
+                    **kwargs
+                )
+
+            def get_prep_value(self, value):
+                return value
+
+        cls.add_to_class(
+            name,
+            PrimaryKeyField(
+                *self.field_args,
+                **self.field_kwargs
+            )
+        )
+
