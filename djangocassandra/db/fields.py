@@ -303,6 +303,12 @@ class PrimaryKeyField(Field):
             def get_prep_value(self, value):
                 return value
 
+            def get_internal_type(self):
+                return super(
+                    PrimaryKeyField,
+                    self
+                ).get_internal_type()
+
         cls.add_to_class(
             name,
             PrimaryKeyField(
@@ -311,3 +317,8 @@ class PrimaryKeyField(Field):
             )
         )
 
+    def get_internal_type(self):
+        return self.field_class(
+            *self.field_args,
+            **self.field_kwargs
+        ).get_internal_type()
