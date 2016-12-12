@@ -167,7 +167,7 @@ class RelatedModelC(Model):
 
 
 class UUIDFieldModel(Model):
-    id = AutoFieldUUID(primary_key=True)
+    id = PrimaryKeyField()
     uuid = FieldUUID()
 
 
@@ -307,9 +307,10 @@ class ForeignPartitionKeyModel(ColumnFamilyModel):
             'created'
         ]
 
-    related = ForeignKey(
-        ClusterPrimaryKeyModel,
-        primary_key=True
+    related = PrimaryKeyField(
+        field_class=ForeignKey,
+        field_args=[ClusterPrimaryKeyModel],
+        field_kwargs={"primary_key": True}
     )
     created = DateTimeField(
         default=datetime.datetime.utcnow
