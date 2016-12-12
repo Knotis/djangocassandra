@@ -304,6 +304,9 @@ class PrimaryKeyField(Field):
                 return value
 
             def get_internal_type(self):
+                if ForeignKey in self.__class__.__bases__:
+                    return "ForeignKey"
+
                 return super(
                     PrimaryKeyField,
                     self
@@ -318,6 +321,7 @@ class PrimaryKeyField(Field):
         )
 
     def get_internal_type(self):
+        import pdb; pdb.set_trace()
         return self.field_class(
             *self.field_args,
             **self.field_kwargs
