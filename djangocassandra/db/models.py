@@ -4,13 +4,17 @@ from collections import OrderedDict
 from django.apps import apps
 from django.db.models import (
     Model as DjangoModel,
-    Manager
+    Manager,
+    ForeignKey
 )
 from django.db.models.fields import (
     FieldDoesNotExist
 )
 
-from .fields import TokenPartitionKeyField
+from .fields import (
+    TokenPartitionKeyField,
+    PrimaryKeyField
+)
 
 from .query import QuerySet
 
@@ -118,7 +122,12 @@ class ColumnFamilyModel(DjangoModel):
             if 1 < len(all_keys):
                 pk_value = PrimaryKeyValue()
                 for key in all_keys:
-                    pk_value[key] = getattr(self, key)
+                    field = self._meta.get_field_by_name(key)[0]
+                    if isinstance(field, ForeignKey):
+                        pk_value[key] = getattr(self, key + "_id")
+
+                    else:
+                        pk_value[key] = getattr(self, key)
 
                 return pk_value
 
