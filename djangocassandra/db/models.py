@@ -11,11 +11,8 @@ from django.db.models.fields import (
     FieldDoesNotExist
 )
 
-from .fields import (
-    TokenPartitionKeyField,
-    PrimaryKeyField
-)
-
+from .fields import TokenPartitionKeyField
+from .values import PrimaryKeyValue
 from .query import QuerySet
 
 
@@ -58,22 +55,6 @@ class ColumnFamilyManager(Manager.from_queryset(QuerySet)):
 
         return instance
 
-
-class PrimaryKeyValue(OrderedDict):
-    def __int__(self):
-        return self.__hash__()
-
-    def __hash__(self):
-        return hash(self.to_tuple())
-
-    def __str__(self):
-        return str(self.to_tuple())
-
-    def __unicode__(self):
-        return unicode(self.to_tuple())
-
-    def to_tuple(self):
-        return tuple(self.iteritems())
 
 
 class ColumnFamilyModel(DjangoModel):
@@ -124,10 +105,12 @@ class ColumnFamilyModel(DjangoModel):
                 for key in all_keys:
                     field = self._meta.get_field_by_name(key)[0]
                     if isinstance(field, ForeignKey):
-                        pk_value[key] = getattr(self, key + "_id")
+                        key += "_id"
 
-                    else:
-                        pk_value[key] = getattr(self, key)
+                    pk_value[key] = field.get_prep_value(getattr(
+                        self,
+                        key
+                    ))
 
                 return pk_value
 

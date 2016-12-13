@@ -1,5 +1,7 @@
 import datetime
 
+from uuid import UUID
+
 from django.db.models import (
     DO_NOTHING,
     Model,
@@ -175,16 +177,14 @@ class ClusterPrimaryKeyModel(ColumnFamilyModel):
     class Cassandra:
         clustering_keys = ['field_2', 'field_3']
 
-    field_1 = CharField(
-        primary_key=True,
-        max_length=32
+    field_1 = FieldUUID(
+        primary_key=True
     )
     field_2 = CharField(max_length=32)
     field_3 = CharField(max_length=32)
     data = CharField(max_length=64)
 
     def auto_populate(self):
-        self.field_1 = random_string(32)
         self.field_2 = random_string(32)
         self.field_3 = random_string(32)
         self.data = random_string(64)
@@ -297,7 +297,6 @@ class DenormalizedModelB(DenormalizedModelBase):
         default=datetime.datetime.utcnow
     )
 
-
 class ForeignPartitionKeyModel(ColumnFamilyModel):
     class Cassandra:
         partition_keys = [
@@ -309,8 +308,7 @@ class ForeignPartitionKeyModel(ColumnFamilyModel):
 
     related = PrimaryKeyField(
         field_class=ForeignKey,
-        field_args=[ClusterPrimaryKeyModel],
-        field_kwargs={"primary_key": True}
+        field_args=[ClusterPrimaryKeyModel]
     )
     created = DateTimeField(
         default=datetime.datetime.utcnow
