@@ -211,6 +211,15 @@ class ForeignPartitionKeyModelTestCase(TestCase):
                 len(results)
             )
 
+        for i in instances:
+            i.delete()
+
+        all_instances = ForeignPartitionKeyModel.objects.all()
+        self.assertEqual(
+            0,
+            len(all_instances)
+        )
+
 
 class TestDictFieldModel(TestCase):
     def setUp(self):

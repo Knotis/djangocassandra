@@ -1,5 +1,6 @@
 import uuid
 
+from math import log10, floor
 from datetime import datetime
 from django.utils.six import with_metaclass
 from django.db.models import (
@@ -14,21 +15,28 @@ from django.utils.translation import ugettext_lazy as _
 
 from cassandra.cqlengine.functions import Token
 
+from .values import PrimaryKeyValue
+
+
 class DateTimeField(DjangoDateTimeField):
     def get_prep_value(self, value):
         # Hack cassandra truncates microseconds to milliseconds.
-        value = datetime(
-            value.year,
-            value.month,
-            value.day,
-            value.hour,
-            value.minute,
-            value.second,
-            int(str(
-                value.microsecond
-            )[:-3] + "000"),
-            value.tzinfo
-        )
+        microsecond = value.microsecond
+        if 0 != microsecond:
+            microsecond = round(
+                value.microsecond,
+                -int(floor(log10(abs(value.microsecond)))) + 2
+            )
+            value = datetime(
+                value.year,
+                value.month,
+                value.day,
+                value.hour,
+                value.minute,
+                value.second,
+                int(microsecond),
+                value.tzinfo
+            )
 
         return super(DateTimeField, self).get_prep_value(value)
 
@@ -167,7 +175,11 @@ class FieldUUID(with_metaclass(SubfieldBase, CharField)):
         ):
             return value
 
-        return uuid.UUID(value)
+        try:
+            return uuid.UUID(value)
+
+        except:
+            return value
 
     def get_internal_type(self):
         return 'FieldUUID'
@@ -222,14 +234,17 @@ class AutoFieldUUID(with_metaclass(SubfieldBase, AutoField)):
             return value
 
     def get_prep_value(self, value):
-        value = super(AutoField, self).get_prep_value(value)
         if (
             value is None or
             isinstance(value, uuid.UUID)
         ):
             return value
 
-        return uuid.UUID(value)
+        try:
+            return uuid.UUID(value)
+
+        except:
+            return value
 
     def get_internal_type(self):
         return 'AutoFieldUUID'
@@ -301,10 +316,17 @@ class PrimaryKeyField(Field):
                 )
 
             def get_prep_value(self, value):
-                return value
+                if isinstance(value, PrimaryKeyValue):
+                    return value
+
+                elif isinstance(self, ForeignKey):
+                    return self.related_field.get_prep_value(value)
+                    
+                else:
+                    return super(PrimaryKeyField, self).get_prep_value(value)
 
             def get_internal_type(self):
-                if ForeignKey in self.__class__.__bases__:
+                if isinstance(self, ForeignKey):
                     return "ForeignKey"
 
                 return super(
@@ -319,10 +341,3 @@ class PrimaryKeyField(Field):
                 **self.field_kwargs
             )
         )
-
-    def get_internal_type(self):
-        import pdb; pdb.set_trace()
-        return self.field_class(
-            *self.field_args,
-            **self.field_kwargs
-        ).get_internal_type()

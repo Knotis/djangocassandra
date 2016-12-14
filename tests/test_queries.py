@@ -1,4 +1,5 @@
 import warnings
+import uuid
 
 from unittest import TestCase
 
@@ -119,29 +120,32 @@ class DatabaseClusteringKeyTestCase(TestCase):
         )
 
         manager = ClusterPrimaryKeyModel.objects
+
+        self.uuid0 = str(uuid.uuid4())
         manager.create(
-            field_1='aaaa',
+            field_1=self.uuid0,
             field_2='aaaa',
             field_3='bbbb',
             data='Foo'
         )
 
         manager.create(
-            field_1='aaaa',
+            field_1=self.uuid0,
             field_2='bbbb',
             field_3='cccc',
             data='Tao'
         )
 
+        self.uuid1 = str(uuid.uuid4())
         manager.create(
-            field_1='bbbb',
+            field_1=self.uuid1,
             field_2='aaaa',
             field_3='aaaa',
             data='Bar'
         )
 
         manager.create(
-            field_1='bbbb',
+            field_1=self.uuid1,
             field_2='bbbb',
             field_3='aaaa',
             data='Lel'
@@ -182,9 +186,9 @@ class DatabaseClusteringKeyTestCase(TestCase):
         manager = ClusterPrimaryKeyModel.objects
         all_rows = list(manager.all())
 
-        filtered_rows = list(manager.filter(field_1='bbbb'))
+        filtered_rows = list(manager.filter(field_1=self.uuid1))
 
-        filtered_rows_inmem = [r for r in all_rows if r.pk == 'bbbb']
+        filtered_rows_inmem = [r for r in all_rows if r.pk == self.uuid1]
 
         self.assertEqual(
             len(filtered_rows),
@@ -203,7 +207,7 @@ class DatabaseClusteringKeyTestCase(TestCase):
 
         with warnings.catch_warnings(record=True) as w:
             filtered_rows = list(manager.filter(
-                field_1='bbbb',
+                field_1=self.uuid1,
                 field_2='aaaa',
                 field_3='aaaa'
             ))
@@ -215,7 +219,7 @@ class DatabaseClusteringKeyTestCase(TestCase):
 
         with warnings.catch_warnings(record=True) as w:
             filtered_rows = list(manager.filter(
-                field_1='bbbb'
+                field_1=self.uuid1
             ).filter(
                 field_2='aaaa'
             ).filter(
@@ -229,7 +233,7 @@ class DatabaseClusteringKeyTestCase(TestCase):
 
         filtered_rows_inmem = [
             r for r in all_rows if
-            r.field_1 == 'bbbb' and
+            r.field_1 == self.uuid1 and
             r.field_2 == 'aaaa' and
             r.field_3 == 'aaaa'
         ]
@@ -247,20 +251,20 @@ class DatabaseClusteringKeyTestCase(TestCase):
 
     def test_orderby(self):
         manager = ClusterPrimaryKeyModel.objects
-        filtered_rows = list(manager.filter(field_1='bbbb'))
+        filtered_rows = list(manager.filter(field_1=self.uuid1))
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter('always')
 
             filtered_rows_ordered = list(
                 manager.filter(
-                    field_1='bbbb'
+                    field_1=self.uuid1
                 ).order_by('field_2')
             )
 
             filtered_rows_ordered_desc = list(
                 manager.filter(
-                    field_1='bbbb'
+                    field_1=self.uuid1
                 ).order_by('-field_2')
             )
 
