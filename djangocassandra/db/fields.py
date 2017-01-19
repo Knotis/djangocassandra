@@ -271,20 +271,17 @@ class AutoFieldUUID(with_metaclass(SubfieldBase, AutoField)):
 class PrimaryKeyField(Field):
     def __init__(
         self,
-        field_class=AutoFieldUUID,
-        field_args=[],
-        field_kwargs={},
         *args,
         **kwargs
     ):
-        self.field_class = field_class
-        self.field_args = field_args
-        self.field_kwargs = field_kwargs
-
-        super(PrimaryKeyField, self).__init__(
-            *args,
-            **kwargs
+        self.field_class = kwargs.pop(
+            'field_class',
+            AutoFieldUUID
         )
+        self.field_args = args
+        self.field_kwargs = kwargs
+
+        super(PrimaryKeyField, self).__init__()
 
     def contribute_to_class(
         self,
