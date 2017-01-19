@@ -95,10 +95,10 @@ class ComplicatedTestModel(Model):
     char_field = CharField(max_length=32)
     bigint_field = BigIntegerField()
     boolean_field = BooleanField()
-    commaseparatedinteger_field = CommaSeparatedIntegerField()
+    commaseparatedinteger_field = CommaSeparatedIntegerField(max_length=32)
     date_field = DateField()
     datetime_field = DateTimeField()
-    decimal_field = DecimalField()
+    decimal_field = DecimalField(decimal_places=2, max_digits=20)
     email_field = EmailField()
     file_field = FileField()
     filepath_field = FilePathField(path="/home")
@@ -168,6 +168,7 @@ class RelatedModelC(Model):
     )
 
 
+    
 class UUIDFieldModel(Model):
     id = PrimaryKeyField()
     uuid = FieldUUID()
@@ -270,9 +271,10 @@ class DenormalizedModelA(DenormalizedModelBase):
             'created'
         ]
 
-    field_1 = PrimaryKeyField(field_class=CharField, field_kwargs={
-        "max_length": 16
-    })
+    field_1 = PrimaryKeyField(
+        max_length=16,
+        field_class=CharField
+    )
     field_2 = IntegerField()
     created = DateTimeField(
         default=datetime.datetime.utcnow
@@ -307,8 +309,8 @@ class ForeignPartitionKeyModel(ColumnFamilyModel):
         ]
 
     related = PrimaryKeyField(
-        field_class=ForeignKey,
-        field_args=[ClusterPrimaryKeyModel]
+        ClusterPrimaryKeyModel,
+        field_class=ForeignKey
     )
     created = DateTimeField(
         default=datetime.datetime.utcnow
