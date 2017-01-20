@@ -316,7 +316,12 @@ class ForeignPartitionKeyModel(ColumnFamilyModel):
         default=datetime.datetime.utcnow
     )
 
+def dict_field_default():
+    return {}
 
 class DictFieldModel(ColumnFamilyModel):
     id = AutoFieldUUID(primary_key=True)
-    parameters = DictField(CharField(max_length=4096))
+    parameters = DictField(
+        CharField(max_length=4096),
+        default=dict_field_default
+    )
