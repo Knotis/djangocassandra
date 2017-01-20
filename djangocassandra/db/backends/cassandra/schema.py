@@ -40,6 +40,7 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
             self.connection,
             model
         )
+
         self._create_db_table(column_family)
 
     def delete_model(
@@ -132,7 +133,7 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
             model
         )
 
-        for key in column_family.keys():
+        for key in column_family._columns.keys():
             '''
             Turn off indexing for old fields or 
             sync_table will try to recreate them
