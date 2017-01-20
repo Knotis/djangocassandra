@@ -134,7 +134,12 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
         model,
         field
     ):
-        self.create_model(model)
+        '''
+        Removing pk field is impossible and removing
+        other fields is unecessary. They will simply 
+        be ignored.
+        '''
+        pass
 
     def alter_field(
         self,
@@ -143,4 +148,10 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
         new_field,
         strict=False
     ):
-        self.create_model(model)
+        '''
+        Altering fields isn't well supported by 
+        the cassandra driver and these changes are
+        usually attributes only Django cares about
+        so pass...
+        '''
+        pass
