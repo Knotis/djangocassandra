@@ -127,7 +127,22 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
         model,
         field
     ):
-        self.create_model(model)
+        column_family = get_column_family(
+            self.connection,
+            model
+        )
+
+        for key in column_family.keys():
+            '''
+            Turn off indexing for old fields or 
+            sync_table will try to recreate them
+            '''
+            if key is field.db_column:
+                continue
+
+            column_family._columns[key].index = False
+
+        self._create_db_table(column_family)
 
     def remove_field(
         self,
