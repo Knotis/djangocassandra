@@ -127,81 +127,14 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
         model,
         field
     ):
-        column_family = self._add_field(
-            model,
-            field
-        )
-        self._create_db_table(column_family)
-
-    def _add_field(
-        self,
-        model,
-        field,
-        column_family=None
-    ):
-        if None is column_family:
-            column_family = get_column_family(
-                self.connection,
-                model
-            )
-
-        db_field = (
-            field.db_column
-            if field.db_column
-            else field.column
-        )
-        cql_field_type = internal_type_to_column_map[field.get_internal_type()]
-        parameter_args = []
-        parameter_kwargs = { 
-            'primary_key': field.primary_key,
-            'index': field.db_index,
-            'db_field': db_field,
-            'required': not field.blank
-        }
-
-        if issubclass(cql_field_type, Map):
-            parameter_args = [Text, Text]
-
-        cql_field = cql_field_type(*parameter_args, **parameter_kwargs)
-        setattr(column_family, db_field, cql_field)
-        column_family._columns[db_field] = cql_field
-
-        CqlColumnFamilyMetaClass.update_column_family(column_family)
-        return column_family
+        self.create_model(model)
 
     def remove_field(
         self,
         model,
         field
     ):
-        column_family = self._remove_field(
-            model,
-            field
-        )
-        self._create_db_table(column_family)
-
-    def _remove_field(
-        self,
-        model,
-        field,
-        column_family=None
-    ):
-        if None is column_family:
-            column_family = get_column_family(
-                self.connection,
-                model
-            )
-
-        delattr(column_family, field.name)
-        db_field = (
-            field.db_column
-            if field.db_column
-            else field.column
-        )
-        del column_family._columns[db_field]
-
-        CqlColumnFamilyMetaClass.update_column_family(column_family)
-        return column_family
+        self.create_model(model)
 
     def alter_field(
         self,
@@ -210,26 +143,4 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
         new_field,
         strict=False
     ):
-        '''
-        A little more care needs to be taken here to handle
-        cases where exceptions are raised in either _remove_field
-        or in _add_field. This could leave the column_family
-        registery dirty and in a state that would require the
-        web service to restart to function properly.
-        '''
-        column_family = get_column_family(
-            self.connection,
-            model
-        )
-        self._remove_field(
-            model,
-            old_field,
-            column_family=column_family
-        )
-        self._add_field(
-            model,
-            new_field,
-            column_family=column_family
-        )
-
-        self._create_db_table(column_family)
+        self.create_model(model)
