@@ -1,4 +1,8 @@
 from cassandra.cqlengine import management as db_management
+from cassandra.cqlengine.columns import (
+    Map,
+    Text
+)
 
 from django.db.backends.schema import (
     BaseDatabaseSchemaEditor
@@ -147,12 +151,18 @@ class CassandraSchemaEditor(BaseDatabaseSchemaEditor):
             else field.column
         )
         cql_field_type = internal_type_to_column_map[field.get_internal_type()]
-        cql_field = cql_field_type(
-            primary_key=field.primary_key,
-            index=field.db_index,
-            db_field=db_field,
-            required=not field.blank
-        )
+        parameter_args = []
+        parameter_kwargs = { 
+            'primary_key': field.primary_key,
+            'index': field.db_index,
+            'db_field': db_field,
+            'required': not field.blank
+        }
+
+        if issubclass(cql_field_type, Map):
+            parameter_args = [Text, Text]
+
+        cql_field = cql_field_type(*parameter_args, **parameter_kwargs)
         setattr(column_family, db_field, cql_field)
         column_family._columns[db_field] = cql_field
 

@@ -5,15 +5,16 @@ python:
 install:
     - "pip install ."
     - "pip install nose"
+    - pip install pillow
 
 env:
     - DJANGO_SETTINGS_MODULE=tests.settings
 
 services:
-      - cassandra
+    - cassandra
 
 before_script:
-  - pip install coveralls
+    - pip install coveralls
 
 script:
     - nosetests --with-coverage --cover-package=djangocassandra
