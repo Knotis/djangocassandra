@@ -4,7 +4,7 @@ from cassandra.cqlengine.columns import (
     Text
 )
 
-from django.db.backends.schema import (
+from django.db.backends.base.schema import (
     BaseDatabaseSchemaEditor
 )
 

@@ -44,11 +44,13 @@ class DatabaseIntrospectionTestCase(TestCase):
             len(table_list),
             len(self.models)
         )
+
+        table_names = [ti.name for ti in table_list]
         self.assertIn(
             SimpleTestModel._meta.db_table,
-            table_list
+            table_names
         )
         self.assertIn(
             PartitionPrimaryKeyModel._meta.db_table,
-            table_list
+            table_names
         )

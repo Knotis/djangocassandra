@@ -21,3 +21,4 @@ setuptools*.egg
 .py/
 venv/
 doc/build/
+tests/migrations/
