@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='djangocassandra',
-    version='0.8.0',
+    version='0.9.1',
     description='Cassandra support for the Django web framework',
     long_description=(
         'The Cassandra database backend for Django has been '
@@ -22,7 +22,7 @@ setup(
     license='BSD License',
     classifiers=[
         'Development Status :: 4 - Beta',
-        'Framework :: Django :: 1.7',
+        'Framework :: Django :: 1.8',
         'Environment :: Web Environment',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: BSD License',
@@ -39,9 +39,13 @@ setup(
         'djangocassandra.db.backends.cassandra'
     ],
     install_requires=[
-        'django>=1.7, < 1.8',
+        'django==1.8.17',
         'cassandra-driver==3.7.0',
         'blist',
-        'djangotoolbox==1.7.0'
+        'djangotoolbox==1.8.1'
     ],
+    dependency_links=[(
+        'https://github.com/Knotis/djangotoolbox/'
+        'archive/master.tar.gz#egg=djangotoolbox-1.8.1'
+    )]
 )

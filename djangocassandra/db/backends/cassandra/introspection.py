@@ -1,6 +1,9 @@
 import itertools
 
-from django.db.backends import BaseDatabaseIntrospection
+from django.db.backends.base.introspection import (
+    BaseDatabaseIntrospection,
+    TableInfo
+)
 from djangotoolbox.db.base import NonrelDatabaseIntrospection
 
 
@@ -59,7 +62,7 @@ class DatabaseIntrospection(NonrelDatabaseIntrospection):
             if None is not current_keyspace:
                 cursor.set_keyspace(current_keyspace)
 
-        return [row[schema_table_name_field] for row in table_list]
+        return [TableInfo(row[schema_table_name_field], 't') for row in table_list]
 
     def table_names(self, cursor=None):
         return BaseDatabaseIntrospection.table_names(self, cursor)
